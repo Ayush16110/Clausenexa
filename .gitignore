@@ -62,16 +62,6 @@ Thumbs.db
 
 coverage/
 
-# ==========================================
-# Python (AI / Processing Services)
-# ==========================================
-
-__pycache__/
-*.py[cod]
-*.pyo
-
-venv/
-.venv/
 
 # ==========================================
 # Local Database / Redis Data
