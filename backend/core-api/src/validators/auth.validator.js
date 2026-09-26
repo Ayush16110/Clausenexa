@@ -61,8 +61,53 @@ const resendEmailVerificationValidator = () => {
     ];
 };
 
+const forgotPasswordValidator = () => {
+    return [
+        body("email")
+            .trim()
+            .notEmpty()
+            .withMessage("Email is required")
+            .isEmail()
+            .withMessage("Email is invalid")
+            .normalizeEmail(),
+    ];
+};
+
+const resetPasswordValidator = () => {
+    return [
+        body("newPassword")
+            .notEmpty()
+            .withMessage("New password is required")
+            .isLength({
+                min: 8,
+                max: 128,
+            })
+            .withMessage("New password must be between 8 and 128 characters"),
+    ];
+};
+
+const changePasswordValidator = () => {
+    return [
+        body("currentPassword")
+            .notEmpty()
+            .withMessage("Current password is required"),
+
+        body("newPassword")
+            .notEmpty()
+            .withMessage("New password is required")
+            .isLength({
+                min: 8,
+                max: 128,
+            })
+            .withMessage("New password must be between 8 and 128 characters"),
+    ];
+};
+
 export {
     userRegisterValidator,
     userLoginValidator,
     resendEmailVerificationValidator,
+    forgotPasswordValidator,
+    resetPasswordValidator,
+    changePasswordValidator,
 };

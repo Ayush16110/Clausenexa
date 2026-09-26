@@ -2,7 +2,11 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { User } from "../models/user.model.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { sendEmail, emailVerificationMailGenContent } from "../utils/email.js";
+import {
+    sendEmail,
+    emailVerificationMailGenContent,
+    forgotPasswordMailGenContent,
+} from "../utils/email.js";
 import env from "../config/env.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
@@ -295,6 +299,135 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, null, "Verification email sent"));
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({
+        email: email,
+    });
+
+    if (!user) {
+        return res
+            .status(200)
+            .json(
+                new ApiResponse(
+                    200,
+                    null,
+                    "If an account exists with this email, a password reset link has been sent",
+                ),
+            );
+    }
+
+    const { unhashedToken, hashedToken, tokenExpiry } =
+        user.generateTemporaryToken();
+
+    user.forgotPasswordToken = hashedToken;
+    user.forgotPasswordTokenExpiry = tokenExpiry;
+    user.refreshToken = null;
+
+    await user.save({
+        validateBeforeSave: false,
+    });
+
+    const resetLink = `${env.clientUrl}/reset-password?token=${unhashedToken}&id=${user._id}`;
+
+    try {
+        await sendEmail({
+            email: email,
+            subject: "Reset Your ClauseNexa Password",
+            mailGenContent: forgotPasswordMailGenContent(
+                user.username,
+                resetLink,
+            ),
+        });
+    } catch (error) {
+        throw new ApiError(503, "Failed to send password reset email");
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                null,
+                "If an account exists with this email, a password reset link has been sent",
+            ),
+        );
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token, id } = req.query;
+    const { newPassword } = req.body;
+
+    if (!token || !id) {
+        throw new ApiError(400, "Token or Id is missing");
+    }
+
+    const user = await User.findById(id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    if (!user.forgotPasswordToken || !user.forgotPasswordTokenExpiry) {
+        throw new ApiError(400, "Invalid or expired token");
+    }
+
+    if (user.forgotPasswordTokenExpiry < new Date()) {
+        throw new ApiError(400, "Token is expired");
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const isTokenValid = hashedToken === user.forgotPasswordToken;
+
+    if (!isTokenValid) {
+        throw new ApiError(400, "Token is invalid");
+    }
+
+    user.password = newPassword;
+    user.refreshToken = null;
+    user.forgotPasswordToken = null;
+    user.forgotPasswordTokenExpiry = null;
+    await user.save();
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Password reset successful"));
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const isCurrentPassValid = await user.isPasswordCorrect(currentPassword);
+
+    if (!isCurrentPassValid) {
+        throw new ApiError(401, "Current password is incorrect");
+    }
+
+    if (currentPassword === newPassword) {
+        throw new ApiError(
+            400,
+            "New password must be different from current password",
+        );
+    }
+
+    user.password = newPassword;
+    user.refreshToken = null;
+
+    await user.save();
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Password changed successfully"));
+});
+
 export {
     registerUser,
     loginUser,
@@ -302,4 +435,7 @@ export {
     logout,
     refreshAccessToken,
     resendEmailVerification,
+    forgotPassword,
+    resetPassword,
+    changePassword,
 };

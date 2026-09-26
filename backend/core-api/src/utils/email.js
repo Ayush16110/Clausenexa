@@ -60,4 +60,27 @@ const emailVerificationMailGenContent = (username, verificationLink) => {
     };
 };
 
-export { sendEmail, emailVerificationMailGenContent };
+const forgotPasswordMailGenContent = (username, resetLink) => {
+    return {
+        body: {
+            name: username,
+            intro: "We received a request to reset your ClauseNexa account password.",
+            action: {
+                instructions:
+                    "Click the button below to reset your password. This link will expire in 10 minutes.",
+                button: {
+                    color: "#2563EB",
+                    text: "Reset Password",
+                    link: resetLink,
+                },
+            },
+            outro: "If you did not request a password reset, you can safely ignore this email.",
+        },
+    };
+};
+
+export {
+    sendEmail,
+    emailVerificationMailGenContent,
+    forgotPasswordMailGenContent,
+};
