@@ -7,7 +7,6 @@ import env from "../config/env.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { appendFile } from "fs";
 
 const generateAccessAndRefreshToken = async (userId) => {
     const user = await User.findById(userId);
@@ -253,4 +252,54 @@ const logout = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, null, "User successfully logged out"));
 });
 
-export { registerUser, loginUser, verifyEmail, logout, refreshAccessToken };
+const resendEmailVerification = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({
+        email: email,
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    if (user.isEmailVerified) {
+        throw new ApiError(409, "User is already verified");
+    }
+
+    const { unhashedToken, hashedToken, tokenExpiry } =
+        user.generateTemporaryToken();
+
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationTokenExpiry = tokenExpiry;
+
+    await user.save({ validateBeforeSave: false });
+
+    const verificationLink = `${env.clientUrl}/verify-email?token=${unhashedToken}&id=${user._id}`;
+
+    try {
+        await sendEmail({
+            email: user.email,
+            subject: "User Account Verification",
+            mailGenContent: emailVerificationMailGenContent(
+                user.username,
+                verificationLink,
+            ),
+        });
+    } catch (error) {
+        throw new ApiError(503, "Failed to send verification email");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Verification email sent"));
+});
+
+export {
+    registerUser,
+    loginUser,
+    verifyEmail,
+    logout,
+    refreshAccessToken,
+    resendEmailVerification,
+};

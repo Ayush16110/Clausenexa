@@ -49,4 +49,20 @@ const userLoginValidator = () => {
     ];
 };
 
-export { userRegisterValidator, userLoginValidator };
+const resendEmailVerificationValidator = () => {
+    return [
+        body("email")
+            .trim()
+            .notEmpty()
+            .withMessage("Email is required")
+            .isEmail()
+            .withMessage("Email is invalid")
+            .normalizeEmail(),
+    ];
+};
+
+export {
+    userRegisterValidator,
+    userLoginValidator,
+    resendEmailVerificationValidator,
+};

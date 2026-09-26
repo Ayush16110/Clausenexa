@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     userRegisterValidator,
     userLoginValidator,
+    resendEmailVerificationValidator,
 } from "../validators/auth.validator.js";
 import { validate } from "../middlewares/validation.middleware.js";
 import {
@@ -10,6 +11,7 @@ import {
     verifyEmail,
     logout,
     refreshAccessToken,
+    resendEmailVerification,
 } from "../controllers/auth.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -20,6 +22,13 @@ router.route("/register").post(userRegisterValidator(), validate, registerUser);
 router.route("/login").post(userLoginValidator(), validate, loginUser);
 router.route("/verify-email").get(verifyEmail);
 router.route("/refresh").post(refreshAccessToken);
+router
+    .route("/resend-verification")
+    .post(
+        resendEmailVerificationValidator(),
+        validate,
+        resendEmailVerification,
+    );
 
 // secured routes
 router.route("/logout").post(verifyJWT, logout);
