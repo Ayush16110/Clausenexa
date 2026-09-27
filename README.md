@@ -2,9 +2,9 @@
 
 > An AI-powered legal contract analysis platform designed to process, understand, and query complex legal documents.
 
-ClauseNexa enables users to upload legal contracts and interact with them using natural language. The system processes large PDF documents asynchronously, converts relevant document content into embeddings, and uses a Retrieval-Augmented Generation (RAG) pipeline to provide contextual AI-powered answers with clause and page references.
+ClauseNexa enables users to upload legal contracts and interact with them using natural language. The system is designed to process large PDF documents asynchronously, convert relevant document content into embeddings, and use a Retrieval-Augmented Generation (RAG) pipeline to provide contextual AI-powered answers with clause and page references.
 
-> **Project Status:** 🚧 Architecture & Development Phase
+> **Project Status: 🚧 Active Development**
 
 ---
 
@@ -12,7 +12,7 @@ ClauseNexa enables users to upload legal contracts and interact with them using 
 
 Legal contracts can contain hundreds of pages of complex clauses, obligations, liabilities, and conditions. Manually reviewing these documents is time-consuming and inefficient.
 
-Processing such large documents also introduces engineering challenges:
+Processing large documents also introduces engineering challenges:
 
 - Large PDF processing can take significant time.
 - Synchronous processing can block application resources.
@@ -25,8 +25,6 @@ ClauseNexa is designed to address these challenges using asynchronous document p
 ---
 
 ## 🎯 Project Goals
-
-The primary goals of ClauseNexa are to:
 
 - Upload and manage legal contract documents.
 - Process large PDF documents asynchronously.
@@ -41,8 +39,6 @@ The primary goals of ClauseNexa are to:
 ---
 
 # 🏗️ High-Level Architecture
-
-ClauseNexa is divided into three primary application services:
 
 ```text
 Frontend
@@ -95,7 +91,7 @@ Core API
                   202 Accepted
 ```
 
-The document is then processed in the background:
+Background processing:
 
 ```text
 BullMQ
@@ -106,18 +102,18 @@ Fetch Original PDF
    ↓
 Extract Text
    ↓
+Clean Text
+   ↓
 Chunk Document
    ↓
 Generate Embeddings
    ↓
 Store in Vector Database
+   ↓
+Update Processing State
 ```
 
----
-
 ## 🤖 AI Contract Q&A
-
-The RAG / AI pipeline processes contract-related questions synchronously.
 
 ```text
 User Prompt + Contract ID
@@ -126,25 +122,23 @@ User Prompt + Contract ID
           ↓
     RAG / AI Service
           │
+          ├── Validate Query
           ├── Retrieve Contract / Chat Context
-          │
+          ├── Generate Query Embedding
           ├── Search Relevant Document Chunks
-          │
+          ├── Apply Contract / Version Filters
           └── Build Contextual Prompt
                     ↓
                 LLM Provider
                     ↓
                 AI Response
                     ↓
+                 Core API
+                    ↓
                  Frontend
 ```
 
-The AI response may include:
-
-- Contextual answers
-- Relevant contract information
-- Clause references
-- Page references
+The AI response may include contextual answers, relevant contract information, clause references, page references, and retrieved source information.
 
 ---
 
@@ -152,7 +146,7 @@ The AI response may include:
 
 ### 1. Asynchronous Document Processing
 
-Large documents are processed through a background job queue instead of blocking the Core API request lifecycle.
+Large documents are processed through background jobs instead of blocking the Core API request lifecycle.
 
 ```text
 Core API
@@ -164,18 +158,14 @@ Worker
 
 The upload endpoint can immediately return `202 Accepted` while processing continues in the background.
 
----
-
 ### 2. Lightweight Queue Jobs
 
 Large PDF files are not stored inside Redis.
 
-Instead:
-
 ```text
 PDF → Object Storage
 
-Document Reference → BullMQ Job
+Document Reference + Job Metadata → BullMQ
 ```
 
 Queue jobs contain lightweight information such as:
@@ -185,115 +175,171 @@ Queue jobs contain lightweight information such as:
 - Job type
 - Processing metadata
 
----
-
 ### 3. RAG Service Owns AI Context Construction
 
-The Core API sends:
-
-```text
-Contract ID + User Prompt
-```
+The Core API provides the RAG service with the required contract/query boundary.
 
 The RAG / AI Service is responsible for retrieving:
 
 - Contract context
-- Previous chat history
+- Bounded conversation history
 - Relevant document chunks
+- Active document / processing version context
 
 It then constructs the final prompt sent to the LLM.
 
----
-
 ### 4. Controlled Service Data Access
-
-Each service receives access only to the data stores required for its responsibilities.
 
 | Service | MongoDB | Object Storage | Redis/BullMQ | Vector DB |
 |---|---|---|---|---|
 | Core API | Read / Write | Read / Write | Read / Write | — |
-| Document Processing | Read | Read | Consume Jobs | Read / Write |
+| Document Processing | Read / Write* | Read | Consume Jobs | Read / Write |
 | RAG / AI Pipeline | Read | — | — | Read |
+
+*Required processing state is persisted back to MongoDB.
+
+### 5. MongoDB Is the Source of Truth
+
+The vector database contains derived search data. Original documents and permanent application state remain outside the vector database, allowing vector data to be regenerated when necessary.
+
+### 6. Document and Processing Versioning
+
+Each uploaded file is represented as a document version, while processing versions allow the system to distinguish the currently active searchable representation from previous processing results.
 
 ---
 
-# 🛠️ Planned Technology Stack
+# 🛠️ Technology Stack
 
-> The final technology choices may evolve during implementation.
+## Core API — Implemented
 
-### Frontend
+- Node.js
+- Express.js
+- JavaScript (ES Modules)
+- MongoDB
+- Mongoose
+- JWT
+- bcrypt
+- express-validator
+- Nodemailer
+- Mailgen
+- Jest
+- Prettier
+
+## Planned / Upcoming Infrastructure
+
+- Redis
+- BullMQ
+- Object Storage
+- PDF processing
+- Embedding model
+- Vector Database
+- LLM Provider
+- Docker
+- Reverse Proxy / Load Balancer
+- Cloud Deployment
+
+## Frontend — Planned
 
 - React
 - TypeScript
 - Tailwind CSS
 
-### Core Backend
+---
 
-- Node.js
-- Express.js
-- TypeScript
+# 🔐 Core API
 
-### Database
+The Core API is the primary application backend responsible for authentication, authorization, user-facing API operations, metadata management, and coordination with asynchronous processing services.
 
-- MongoDB
+## Authentication
 
-### Background Processing
+The authentication module currently supports:
 
-- Redis
-- BullMQ
+- User registration
+- Email verification
+- Login
+- JWT access-token authentication
+- Refresh-token rotation
+- Logout and refresh-token invalidation
+- Resend verification email
+- Forgot-password flow
+- Password reset
+- Change password
+- Protected routes
+- Request validation
+- Secure temporary token hashing
+- Password hashing with bcrypt
 
-### Document Storage
+## Authentication Security
 
-- Object Storage
+- Access and refresh tokens are stored in HttpOnly cookies.
+- Refresh tokens are stored server-side in hashed form.
+- Refresh tokens are rotated during refresh.
+- Temporary email-verification and password-reset tokens are hashed before storage.
+- Passwords are hashed with bcrypt.
+- Protected routes validate the access token and load the authenticated user.
+- Sensitive token/password fields are excluded from user responses.
 
-### AI / RAG
+## Testing
 
-- Embedding Model
-- Vector Database
-- LLM Provider
+Authentication includes Jest unit tests covering the user model, JWT generation, temporary tokens, authentication middleware, registration, login, email verification, refresh-token rotation, logout, resend verification, forgot password, reset password, and change password.
 
-### Infrastructure
+Current test result:
 
-- Docker
-- Reverse Proxy / Load Balancer
-- Cloud Deployment
+```text
+Test Suites: 3 passed, 3 total
+Tests:       46 passed, 46 total
+```
+
+Postman smoke testing is also used for API-level verification.
 
 ---
 
-# 📁 Planned Project Structure
+# 📁 Project Structure
 
 ```text
 ClauseNexa/
 │
-├── frontend/
-│
 ├── backend/
 │   ├── core-api/
+│   │   ├── src/
+│   │   ├── tests/
+│   │   ├── package.json
+│   │   └── ...
+│   │
 │   ├── document-processing/
+│   │
 │   └── rag-service/
 │
 ├── docs/
 │   ├── architecture/
 │   └── diagrams/
 │
-├── docker/
+├── client/
 │
 ├── README.md
 └── .gitignore
 ```
 
-The final monorepo structure may evolve as implementation begins.
+The project structure will evolve as additional services are implemented.
 
 ---
 
 # 📚 Architecture Documentation
 
-The project's architecture is being designed before implementation.
+Architecture is designed before implementation.
 
-Current documentation:
+Current documentation includes:
 
-- [High-Level Design](docs/architecture/HLD.md)
-- [Service Communication & Data Flow](docs/architecture/service-communication-data-flow.md)
+- High-Level Design
+- Service Communication & Data Flow
+- Service-Level Architecture
+- Core API Low-Level Design
+- Document Processing Low-Level Design
+- Data Modeling
+- RAG / AI Low-Level Design
+- Overall Low-Level Design
+
+Architecture documentation is available under [`docs/`](./docs/).
 
 ---
 
@@ -304,26 +350,27 @@ Current documentation:
 - [x] Project problem definition
 - [x] Functional requirements
 - [x] User capabilities design
-- [x] Data Flow Diagrams
+- [x] Data flow design
 - [x] High-Level Design
 - [x] Service communication design
 - [x] Service data-access boundaries
-- [ ] Low-Level Design
+- [x] Low-Level Design
 
 ## Phase 2 — Project Foundation
 
-- [ ] Repository setup
-- [ ] Development environment setup
-- [ ] Backend service setup
-- [ ] Database configuration
-- [ ] Docker configuration
+- [x] Repository setup
+- [x] Development environment setup
+- [x] Core API service setup
+- [x] Database configuration
+- [x] Docker environment setup
 
 ## Phase 3 — Core Application
 
-- [ ] Authentication and authorization
+- [x] Authentication and authorization
 - [ ] User management
 - [ ] Contract management
 - [ ] Document upload
+- [ ] Job management
 
 ## Phase 4 — Document Processing
 
@@ -331,41 +378,53 @@ Current documentation:
 - [ ] BullMQ queue
 - [ ] Background workers
 - [ ] PDF text extraction
+- [ ] Text cleaning
 - [ ] Document chunking
 - [ ] Embedding generation
 - [ ] Vector database integration
+- [ ] Processing state management
+- [ ] Document reprocessing
 
 ## Phase 5 — RAG & AI
 
+- [ ] Query embedding
 - [ ] Context retrieval
 - [ ] Contract-aware AI queries
 - [ ] Prompt construction
 - [ ] LLM integration
+- [ ] Source / citation handling
 - [ ] Conversation history
 
 ## Phase 6 — Production Engineering
 
-- [ ] Error handling
+- [ ] Centralized error handling improvements
 - [ ] Retry mechanisms
 - [ ] Circuit breakers
 - [ ] Rate limiting
-- [ ] Logging and monitoring
-- [ ] Testing
+- [ ] Structured logging
+- [ ] Monitoring
+- [ ] Integration testing
 - [ ] Containerization
 - [ ] Deployment
+- [ ] Production hardening
 
 ---
 
 # 📊 Current Project Status
 
-```text
-Project Architecture     ██████████░░  In Progress
-Core Backend             ░░░░░░░░░░░░  Not Started
-Document Processing      ░░░░░░░░░░░░  Not Started
-RAG / AI Pipeline        ░░░░░░░░░░░░  Not Started
-Frontend                 ░░░░░░░░░░░░  Not Started
-Production Engineering   ░░░░░░░░░░░░  Not Started
-```
+| Component | Status |
+|---|---|
+| System Architecture | ✅ Completed |
+| Overall LLD | ✅ Completed |
+| Core API Foundation | ✅ Completed |
+| Authentication | ✅ Completed |
+| User Management | 🚧 Next |
+| Contract Management | ⏳ Planned |
+| Document Upload | ⏳ Planned |
+| Document Processing | ⏳ Planned |
+| RAG / AI Pipeline | ⏳ Planned |
+| Frontend | ⏳ Planned |
+| Production Engineering | ⏳ Planned |
 
 ---
 
@@ -374,6 +433,7 @@ Production Engineering   ░░░░░░░░░░░░  Not Started
 ClauseNexa is being built as a production-oriented engineering project with a focus on:
 
 - Backend architecture
+- Authentication and authorization
 - Asynchronous processing
 - Distributed system concepts
 - Queue-based workloads
@@ -382,18 +442,21 @@ ClauseNexa is being built as a production-oriented engineering project with a fo
 - Retrieval-Augmented Generation
 - Vector databases
 - Service boundaries
+- Data ownership
 - System scalability
+- Fault tolerance
 - Production reliability
+- Testing and code quality
 
 ---
 
-## 📄 License
+# 📄 License
 
 This project is currently being developed for educational and portfolio purposes.
 
 ---
 
-## 👨‍💻 Author
+# 👨‍💻 Author
 
 **Ayush Narayan Gupta**
 
