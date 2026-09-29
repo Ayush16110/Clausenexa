@@ -6,6 +6,7 @@ import requestLogger from "./middlewares/requestLogger.middleware.js";
 import errorMiddleware from "./middlewares/error.middleware.js";
 import healthCheckRoute from "./routes/healthCheck.route.js";
 import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/user.route.js";
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use(requestLogger);
 // Routes
 app.use("/api/v1/healthCheck", healthCheckRoute);
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
 
 // error handling Middleware
 app.use(errorMiddleware);

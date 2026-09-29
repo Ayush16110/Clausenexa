@@ -9,7 +9,6 @@ const userSchema = new Schema(
         username: {
             type: String,
             required: [true, "Username is required"],
-            unique: true,
             lowercase: true,
             trim: true,
         },
@@ -17,7 +16,6 @@ const userSchema = new Schema(
         email: {
             type: String,
             required: [true, "Email is required"],
-            unique: true,
             lowercase: true,
             trim: true,
         },
@@ -62,9 +60,41 @@ const userSchema = new Schema(
             type: Date,
             default: null,
         },
+        usernameLastChangedAt: {
+            type: Date,
+            default: null,
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false,
+        },
+        deletedAt: {
+            type: Date,
+            default: null,
+        },
     },
     {
         timestamps: true,
+    },
+);
+
+userSchema.index(
+    { username: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            isDeleted: false,
+        },
+    },
+);
+
+userSchema.index(
+    { email: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            isDeleted: false,
+        },
     },
 );
 
