@@ -15,7 +15,7 @@ import jwt from "jsonwebtoken";
 const generateAccessAndRefreshToken = async (userId) => {
     const user = await User.findById(userId);
 
-    if (!user) {
+    if (!user || user.isDeleted) {
         throw new ApiError(404, "User not found");
     }
 
@@ -41,6 +41,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const existedUser = await User.findOne({
         $or: [{ username }, { email }],
+        isDeleted: false,
     });
 
     if (existedUser) {
@@ -101,6 +102,7 @@ const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({
         email: email,
+        isDeleted: false,
     });
 
     if (!user) {
@@ -147,7 +149,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
 
     const user = await User.findById(id);
 
-    if (!user) {
+    if (!user || user.isDeleted) {
         throw new ApiError(404, "User not found");
     }
 
@@ -201,6 +203,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     if (!user) {
         throw new ApiError(401, "Invalid Refresh Token");
+    }
+
+    if (user.isDeleted) {
+        throw new ApiError(401, "Account is deleted");
     }
 
     const isTokenValid = await bcrypt.compare(token, user.refreshToken);
@@ -261,6 +267,7 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({
         email: email,
+        isDeleted: false,
     });
 
     if (!user) {
@@ -304,6 +311,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({
         email: email,
+        isDeleted: false,
     });
 
     if (!user) {
@@ -365,7 +373,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
     const user = await User.findById(id);
 
-    if (!user) {
+    if (!user || user.isDeleted) {
         throw new ApiError(404, "User not found");
     }
 

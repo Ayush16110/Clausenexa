@@ -21,6 +21,10 @@ const verifyJWT = async (req, res, next) => {
             throw new ApiError(401, "Invalid access token");
         }
 
+        if (user.isDeleted) {
+            throw new ApiError(401, "Account is deleted");
+        }
+
         req.user = user;
 
         next();

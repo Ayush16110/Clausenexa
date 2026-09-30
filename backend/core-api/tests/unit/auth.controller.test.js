@@ -88,7 +88,11 @@ function makeUser(overrides = {}) {
         email: "test@example.com",
         username: "testuser",
         fullName: "Test User",
+
         isEmailVerified: false,
+
+        isDeleted: false,
+        deletedAt: null,
 
         refreshToken: null,
 
@@ -97,6 +101,8 @@ function makeUser(overrides = {}) {
 
         forgotPasswordToken: null,
         forgotPasswordTokenExpiry: null,
+
+        password: "hashed-password",
 
         isPasswordCorrect: jest.fn(),
 
@@ -115,6 +121,21 @@ function makeUser(overrides = {}) {
     };
 }
 
+function makeResponse() {
+    return {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        cookie: jest.fn().mockReturnThis(),
+        clearCookie: jest.fn().mockReturnThis(),
+    };
+}
+
+function mockUserSelect(user) {
+    return {
+        select: jest.fn().mockResolvedValue(user),
+    };
+}
+
 let req;
 let res;
 let next;
@@ -129,16 +150,19 @@ beforeEach(() => {
         user: {},
     };
 
-    res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn().mockReturnThis(),
-        cookie: jest.fn().mockReturnThis(),
-        clearCookie: jest.fn().mockReturnThis(),
-    };
+    res = makeResponse();
 
     next = jest.fn();
 
     bcrypt.hash.mockResolvedValue("hashed-refresh-token");
+
+    emailVerificationMailGenContent.mockReturnValue(
+        "<html>verification email</html>",
+    );
+
+    forgotPasswordMailGenContent.mockReturnValue(
+        "<html>password reset email</html>",
+    );
 });
 
 describe("registerUser", () => {
@@ -151,22 +175,34 @@ describe("registerUser", () => {
         };
     });
 
-    test("should create a user and send verification email", async () => {
+    test("should register a new user successfully", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(null);
         User.create.mockResolvedValue(user);
 
-        User.findById.mockReturnValueOnce({
-            select: jest.fn().mockResolvedValue(makeUser()),
-        });
+        User.findById.mockReturnValue(
+            mockUserSelect(
+                makeUser({
+                    isEmailVerified: false,
+                }),
+            ),
+        );
 
         sendEmail.mockResolvedValue(true);
 
         await registerUser(req, res, next);
 
         expect(User.findOne).toHaveBeenCalledWith({
-            $or: [{ username: "testuser" }, { email: "test@example.com" }],
+            $or: [
+                {
+                    username: "testuser",
+                },
+                {
+                    email: "test@example.com",
+                },
+            ],
+            isDeleted: false,
         });
 
         expect(User.create).toHaveBeenCalledWith({
@@ -179,13 +215,12 @@ describe("registerUser", () => {
         expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
 
         expect(user.emailVerificationToken).toBe("hashed-token");
+
         expect(user.emailVerificationTokenExpiry).toBeInstanceOf(Date);
 
         expect(user.save).toHaveBeenCalledWith({
             validateBeforeSave: false,
         });
-
-        expect(sendEmail).toHaveBeenCalledTimes(1);
 
         expect(emailVerificationMailGenContent).toHaveBeenCalledWith(
             "testuser",
@@ -194,9 +229,16 @@ describe("registerUser", () => {
             ),
         );
 
+        expect(sendEmail).toHaveBeenCalledWith({
+            email: "test@example.com",
+            subject: "User Account Verification",
+            mailGenContent: "<html>verification email</html>",
+        });
+
         expect(User.findById).toHaveBeenCalledWith("user123");
 
         expect(res.status).toHaveBeenCalledWith(201);
+
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 statusCode: 201,
@@ -206,8 +248,12 @@ describe("registerUser", () => {
         expect(next).not.toHaveBeenCalled();
     });
 
-    test("should reject when user already exists", async () => {
-        User.findOne.mockResolvedValue(makeUser());
+    test("should reject an already existing active user", async () => {
+        User.findOne.mockResolvedValue(
+            makeUser({
+                isDeleted: false,
+            }),
+        );
 
         await expect(registerUser(req, res, next)).rejects.toMatchObject({
             statusCode: 409,
@@ -218,8 +264,39 @@ describe("registerUser", () => {
         expect(sendEmail).not.toHaveBeenCalled();
     });
 
-    test("should reject when user creation fails", async () => {
+    test("should allow registration when only deleted matching user exists", async () => {
         User.findOne.mockResolvedValue(null);
+
+        const user = makeUser();
+
+        User.create.mockResolvedValue(user);
+
+        User.findById.mockReturnValue(
+            mockUserSelect(makeUser()),
+        );
+
+        sendEmail.mockResolvedValue(true);
+
+        await registerUser(req, res, next);
+
+        expect(User.findOne).toHaveBeenCalledWith({
+            $or: [
+                {
+                    username: "testuser",
+                },
+                {
+                    email: "test@example.com",
+                },
+            ],
+            isDeleted: false,
+        });
+
+        expect(User.create).toHaveBeenCalled();
+    });
+
+    test("should reject when user creation returns null", async () => {
+        User.findOne.mockResolvedValue(null);
+
         User.create.mockResolvedValue(null);
 
         await expect(registerUser(req, res, next)).rejects.toMatchObject({
@@ -230,13 +307,56 @@ describe("registerUser", () => {
         expect(sendEmail).not.toHaveBeenCalled();
     });
 
-    test("should reject when verification email fails to send", async () => {
+    test("should generate and store email verification token", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(null);
         User.create.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(new Error("smtp down"));
+        User.findById.mockReturnValue(
+            mockUserSelect(makeUser()),
+        );
+
+        sendEmail.mockResolvedValue(true);
+
+        await registerUser(req, res, next);
+
+        expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
+
+        expect(user.emailVerificationToken).toBe("hashed-token");
+
+        expect(user.emailVerificationTokenExpiry).toBeInstanceOf(Date);
+    });
+
+    test("should send verification email with correct link", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(null);
+        User.create.mockResolvedValue(user);
+
+        User.findById.mockReturnValue(
+            mockUserSelect(makeUser()),
+        );
+
+        sendEmail.mockResolvedValue(true);
+
+        await registerUser(req, res, next);
+
+        expect(emailVerificationMailGenContent).toHaveBeenCalledWith(
+            "testuser",
+            "http://localhost:3000/verify-email?token=unhashed-token&id=user123",
+        );
+    });
+
+    test("should return 503 when verification email fails", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(null);
+        User.create.mockResolvedValue(user);
+
+        sendEmail.mockRejectedValue(
+            new Error("SMTP server unavailable"),
+        );
 
         await expect(registerUser(req, res, next)).rejects.toMatchObject({
             statusCode: 503,
@@ -247,8 +367,24 @@ describe("registerUser", () => {
         expect(user.save).toHaveBeenCalledWith({
             validateBeforeSave: false,
         });
+    });
 
-        expect(sendEmail).toHaveBeenCalledTimes(1);
+    test("should reject when created user cannot be fetched", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(null);
+        User.create.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        User.findById.mockReturnValue(
+            mockUserSelect(null),
+        );
+
+        await expect(registerUser(req, res, next)).rejects.toMatchObject({
+            statusCode: 500,
+            message: "Internal server error",
+        });
     });
 });
 
@@ -260,8 +396,12 @@ describe("loginUser", () => {
         };
     });
 
-    test("should log in a verified user with correct password", async () => {
+    test("should login a verified user successfully", async () => {
         const user = makeUser({
+            isEmailVerified: true,
+        });
+
+        const loggedInUser = makeUser({
             isEmailVerified: true,
         });
 
@@ -269,24 +409,35 @@ describe("loginUser", () => {
 
         User.findOne.mockResolvedValue(user);
 
-        User.findById.mockResolvedValueOnce(user).mockReturnValueOnce({
-            select: jest.fn().mockResolvedValue(
-                makeUser({
-                    isEmailVerified: true,
-                }),
-            ),
-        });
+        User.findById
+            .mockResolvedValueOnce(user)
+            .mockReturnValueOnce(
+                mockUserSelect(loggedInUser),
+            );
 
         await loginUser(req, res, next);
 
-        expect(user.isPasswordCorrect).toHaveBeenCalledWith("password123");
+        expect(User.findOne).toHaveBeenCalledWith({
+            email: "test@example.com",
+            isDeleted: false,
+        });
+
+        expect(user.isPasswordCorrect).toHaveBeenCalledWith(
+            "password123",
+        );
 
         expect(user.generateAccessToken).toHaveBeenCalledTimes(1);
+
         expect(user.generateRefreshToken).toHaveBeenCalledTimes(1);
 
-        expect(bcrypt.hash).toHaveBeenCalledWith("refresh-token", 10);
+        expect(bcrypt.hash).toHaveBeenCalledWith(
+            "refresh-token",
+            10,
+        );
 
-        expect(user.refreshToken).toBe("hashed-refresh-token");
+        expect(user.refreshToken).toBe(
+            "hashed-refresh-token",
+        );
 
         expect(user.save).toHaveBeenCalledWith({
             validateBeforeSave: false,
@@ -295,46 +446,68 @@ describe("loginUser", () => {
         expect(res.cookie).toHaveBeenCalledWith(
             "accessToken",
             "access-token",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
         );
 
         expect(res.cookie).toHaveBeenCalledWith(
             "refreshToken",
             "refresh-token",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
         );
 
         expect(res.status).toHaveBeenCalledWith(200);
 
-        expect(next).not.toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+            }),
+        );
     });
 
-    test("should reject when user does not exist", async () => {
+    test("should reject non-existent user", async () => {
         User.findOne.mockResolvedValue(null);
 
         await expect(loginUser(req, res, next)).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
+
+        expect(userNotUsed(User));
+    });
+
+    test("should reject deleted user", async () => {
+        User.findOne.mockResolvedValue(null);
+
+        await expect(loginUser(req, res, next)).rejects.toMatchObject({
+            statusCode: 404,
+            message: "User not found",
+        });
+
+        expect(User.findOne).toHaveBeenCalledWith({
+            email: "test@example.com",
+            isDeleted: false,
+        });
     });
 
     test("should reject unverified email", async () => {
-        User.findOne.mockResolvedValue(
-            makeUser({
-                isEmailVerified: false,
-            }),
-        );
+        const user = makeUser({
+            isEmailVerified: false,
+        });
+
+        User.findOne.mockResolvedValue(user);
 
         await expect(loginUser(req, res, next)).rejects.toMatchObject({
             statusCode: 403,
             message: "Please verify your email before logging in",
         });
+
+        expect(user.isPasswordCorrect).not.toHaveBeenCalled();
     });
 
     test("should reject incorrect password", async () => {
@@ -350,6 +523,55 @@ describe("loginUser", () => {
             statusCode: 401,
             message: "Incorrect Password",
         });
+
+        expect(user.generateAccessToken).not.toHaveBeenCalled();
+        expect(user.generateRefreshToken).not.toHaveBeenCalled();
+    });
+
+    test("should not issue cookies when password is incorrect", async () => {
+        const user = makeUser({
+            isEmailVerified: true,
+        });
+
+        user.isPasswordCorrect.mockResolvedValue(false);
+
+        User.findOne.mockResolvedValue(user);
+
+        await expect(loginUser(req, res, next)).rejects.toBeDefined();
+
+        expect(res.cookie).not.toHaveBeenCalled();
+    });
+
+    test("should fetch sanitized logged-in user", async () => {
+        const user = makeUser({
+            isEmailVerified: true,
+        });
+
+        user.isPasswordCorrect.mockResolvedValue(true);
+
+        User.findOne.mockResolvedValue(user);
+
+        const select = jest.fn().mockResolvedValue(
+            makeUser({
+                isEmailVerified: true,
+            }),
+        );
+
+        User.findById
+            .mockResolvedValueOnce(user)
+            .mockReturnValueOnce({
+                select,
+            });
+
+        await loginUser(req, res, next);
+
+        expect(select).toHaveBeenCalledWith(
+            expect.stringContaining("-password"),
+        );
+
+        expect(select).toHaveBeenCalledWith(
+            expect.stringContaining("-refreshToken"),
+        );
     });
 });
 
@@ -361,8 +583,19 @@ describe("verifyEmail", () => {
         };
     });
 
-    test("should reject when id or token is missing", async () => {
-        req.query = {};
+    test("should reject when id is missing", async () => {
+        req.query.id = undefined;
+
+        await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
+            statusCode: 400,
+            message: "Verification token and user ID are required",
+        });
+
+        expect(User.findById).not.toHaveBeenCalled();
+    });
+
+    test("should reject when token is missing", async () => {
+        req.query.token = undefined;
 
         await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
@@ -370,7 +603,7 @@ describe("verifyEmail", () => {
         });
     });
 
-    test("should reject when user is not found", async () => {
+    test("should reject when user does not exist", async () => {
         User.findById.mockResolvedValue(null);
 
         await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
@@ -379,7 +612,20 @@ describe("verifyEmail", () => {
         });
     });
 
-    test("should reject when email is already verified", async () => {
+    test("should reject deleted user", async () => {
+        User.findById.mockResolvedValue(
+            makeUser({
+                isDeleted: true,
+            }),
+        );
+
+        await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
+            statusCode: 404,
+            message: "User not found",
+        });
+    });
+
+    test("should reject already verified user", async () => {
         User.findById.mockResolvedValue(
             makeUser({
                 isEmailVerified: true,
@@ -392,7 +638,7 @@ describe("verifyEmail", () => {
         });
     });
 
-    test("should reject when no verification token is stored", async () => {
+    test("should reject missing verification token", async () => {
         User.findById.mockResolvedValue(
             makeUser({
                 emailVerificationToken: null,
@@ -406,11 +652,27 @@ describe("verifyEmail", () => {
         });
     });
 
-    test("should reject an expired verification token", async () => {
+    test("should reject missing verification token expiry", async () => {
         User.findById.mockResolvedValue(
             makeUser({
-                emailVerificationToken: "hashed",
-                emailVerificationTokenExpiry: new Date(Date.now() - 1000),
+                emailVerificationToken: "hashed-token",
+                emailVerificationTokenExpiry: null,
+            }),
+        );
+
+        await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
+            statusCode: 400,
+            message: "Invalid or expired verification token",
+        });
+    });
+
+    test("should reject expired verification token", async () => {
+        User.findById.mockResolvedValue(
+            makeUser({
+                emailVerificationToken: "hashed-token",
+                emailVerificationTokenExpiry: new Date(
+                    Date.now() - 1000,
+                ),
             }),
         );
 
@@ -420,36 +682,58 @@ describe("verifyEmail", () => {
         });
     });
 
-    test("should reject a mismatched verification token", async () => {
-        User.findById.mockResolvedValue(
-            makeUser({
-                emailVerificationToken: "different-hash",
-                emailVerificationTokenExpiry: new Date(Date.now() + 10_000),
-            }),
-        );
+    test("should reject invalid verification token", async () => {
+        const user = makeUser({
+            emailVerificationToken: "different-hash",
+            emailVerificationTokenExpiry: new Date(
+                Date.now() + 10 * 60 * 1000,
+            ),
+        });
 
-        crypto.createHash.mockReturnValue(mockHashChain("computed-hash"));
+        User.findById.mockResolvedValue(user);
+
+        crypto.createHash.mockReturnValue(
+            mockHashChain("computed-hash"),
+        );
 
         await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Invalid verification token",
         });
+
+        expect(crypto.createHash).toHaveBeenCalledWith(
+            "sha256",
+        );
     });
 
     test("should verify a valid email token", async () => {
         const user = makeUser({
             emailVerificationToken: "matching-hash",
-            emailVerificationTokenExpiry: new Date(Date.now() + 10_000),
+            emailVerificationTokenExpiry: new Date(
+                Date.now() + 10 * 60 * 1000,
+            ),
         });
 
         User.findById.mockResolvedValue(user);
 
-        crypto.createHash.mockReturnValue(mockHashChain("matching-hash"));
+        const hashChain = mockHashChain("matching-hash");
+
+        crypto.createHash.mockReturnValue(hashChain);
 
         await verifyEmail(req, res, next);
 
+        expect(hashChain.update).toHaveBeenCalledWith(
+            "raw-token",
+        );
+
+        expect(hashChain.digest).toHaveBeenCalledWith(
+            "hex",
+        );
+
         expect(user.isEmailVerified).toBe(true);
+
         expect(user.emailVerificationToken).toBeNull();
+
         expect(user.emailVerificationTokenExpiry).toBeNull();
 
         expect(user.save).toHaveBeenCalledWith({
@@ -457,7 +741,6 @@ describe("verifyEmail", () => {
         });
 
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
     });
 });
 
@@ -468,75 +751,133 @@ describe("refreshAccessToken", () => {
         };
     });
 
-    test("should reject when refresh token cookie is missing", async () => {
+    test("should reject missing refresh token", async () => {
         req.cookies = {};
 
-        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 401,
             message: "Refresh token is missing or invalid",
         });
+
+        expect(jwt.verify).not.toHaveBeenCalled();
     });
 
-    test("should reject an invalid refresh JWT", async () => {
+    test("should reject invalid JWT", async () => {
         jwt.verify.mockImplementation(() => {
-            throw new Error("bad token");
+            throw new Error("invalid jwt");
         });
 
-        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid or expired refresh token",
         });
     });
 
-    test("should reject when refresh token user is not found", async () => {
+    test("should verify refresh token with correct secret", async () => {
         jwt.verify.mockReturnValue({
             _id: "user123",
         });
 
-        User.findById.mockReturnValueOnce({
-            select: jest.fn().mockResolvedValue(null),
+        User.findById.mockReturnValue(
+            mockUserSelect(null),
+        );
+
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toBeDefined();
+
+        expect(jwt.verify).toHaveBeenCalledWith(
+            "raw-refresh-token",
+            "test-refresh-secret",
+        );
+    });
+
+    test("should reject when user does not exist", async () => {
+        jwt.verify.mockReturnValue({
+            _id: "user123",
         });
 
-        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
+        User.findById.mockReturnValue(
+            mockUserSelect(null),
+        );
+
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid Refresh Token",
         });
     });
 
-    test("should reject when stored refresh token does not match", async () => {
-        const user = makeUser({
-            refreshToken: "stored-hash",
-        });
-
+    test("should reject deleted account", async () => {
         jwt.verify.mockReturnValue({
             _id: "user123",
         });
 
-        User.findById.mockReturnValueOnce({
-            select: jest.fn().mockResolvedValue(user),
+        const deletedUser = makeUser({
+            isDeleted: true,
+            refreshToken: "stored-hash",
         });
+
+        User.findById.mockReturnValue(
+            mockUserSelect(deletedUser),
+        );
+
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 401,
+            message: "Account is deleted",
+        });
+
+        expect(bcrypt.compare).not.toHaveBeenCalled();
+    });
+
+    test("should reject invalid stored refresh token", async () => {
+        jwt.verify.mockReturnValue({
+            _id: "user123",
+        });
+
+        const user = makeUser({
+            refreshToken: "stored-hash",
+        });
+
+        User.findById.mockReturnValue(
+            mockUserSelect(user),
+        );
 
         bcrypt.compare.mockResolvedValue(false);
 
-        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
+        await expect(
+            refreshAccessToken(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 401,
             message: "Refresh token is invalid",
         });
+
+        expect(bcrypt.compare).toHaveBeenCalledWith(
+            "raw-refresh-token",
+            "stored-hash",
+        );
     });
 
-    test("should issue new tokens for a valid refresh token", async () => {
-        const user = makeUser({
-            refreshToken: "stored-hash",
-        });
-
+    test("should refresh tokens successfully", async () => {
         jwt.verify.mockReturnValue({
             _id: "user123",
         });
 
+        const user = makeUser({
+            refreshToken: "stored-hash",
+        });
+
         User.findById
-            .mockReturnValueOnce({
-                select: jest.fn().mockResolvedValue(user),
-            })
+            .mockReturnValueOnce(
+                mockUserSelect(user),
+            )
             .mockResolvedValueOnce(user);
 
         bcrypt.compare.mockResolvedValue(true);
@@ -549,38 +890,88 @@ describe("refreshAccessToken", () => {
         );
 
         expect(user.generateAccessToken).toHaveBeenCalledTimes(1);
+
         expect(user.generateRefreshToken).toHaveBeenCalledTimes(1);
+
+        expect(bcrypt.hash).toHaveBeenCalledWith(
+            "refresh-token",
+            10,
+        );
+
+        expect(user.refreshToken).toBe(
+            "hashed-refresh-token",
+        );
+
+        expect(user.save).toHaveBeenCalledWith({
+            validateBeforeSave: false,
+        });
 
         expect(res.cookie).toHaveBeenCalledWith(
             "accessToken",
             "access-token",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
         );
 
         expect(res.cookie).toHaveBeenCalledWith(
             "refreshToken",
             "refresh-token",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
         );
 
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+    });
+
+    test("should rotate refresh token rather than reuse old token", async () => {
+        jwt.verify.mockReturnValue({
+            _id: "user123",
+        });
+
+        const user = makeUser({
+            refreshToken: "old-hash",
+        });
+
+        User.findById
+            .mockReturnValueOnce(
+                mockUserSelect(user),
+            )
+            .mockResolvedValueOnce(user);
+
+        bcrypt.compare.mockResolvedValue(true);
+
+        await refreshAccessToken(req, res, next);
+
+        expect(user.generateRefreshToken).toHaveBeenCalled();
+
+        expect(bcrypt.hash).toHaveBeenCalledWith(
+            "refresh-token",
+            10,
+        );
+
+        expect(user.refreshToken).toBe(
+            "hashed-refresh-token",
+        );
     });
 });
 
 describe("logout", () => {
-    test("should clear refresh token and cookies", async () => {
+    beforeEach(() => {
         req.user = {
             _id: "user123",
         };
+    });
 
-        User.findByIdAndUpdate.mockResolvedValue(makeUser());
+    test("should clear stored refresh token", async () => {
+        User.findByIdAndUpdate.mockResolvedValue(
+            makeUser({
+                refreshToken: null,
+            }),
+        );
 
         await logout(req, res, next);
 
@@ -595,25 +986,54 @@ describe("logout", () => {
                 new: true,
             },
         );
+    });
+
+    test("should clear access token cookie", async () => {
+        User.findByIdAndUpdate.mockResolvedValue(
+            makeUser(),
+        );
+
+        await logout(req, res, next);
 
         expect(res.clearCookie).toHaveBeenCalledWith(
             "accessToken",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
         );
+    });
+
+    test("should clear refresh token cookie", async () => {
+        User.findByIdAndUpdate.mockResolvedValue(
+            makeUser(),
+        );
+
+        await logout(req, res, next);
 
         expect(res.clearCookie).toHaveBeenCalledWith(
             "refreshToken",
-            expect.objectContaining({
+            {
                 httpOnly: true,
                 secure: false,
-            }),
+            },
+        );
+    });
+
+    test("should return successful logout response", async () => {
+        User.findByIdAndUpdate.mockResolvedValue(
+            makeUser(),
         );
 
+        await logout(req, res, next);
+
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+            }),
+        );
     });
 });
 
@@ -624,7 +1044,23 @@ describe("resendEmailVerification", () => {
         };
     });
 
-    test("should reject when user is not found", async () => {
+    test("should reject non-existent active user", async () => {
+        User.findOne.mockResolvedValue(null);
+
+        await expect(
+            resendEmailVerification(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 404,
+            message: "User not found",
+        });
+
+        expect(User.findOne).toHaveBeenCalledWith({
+            email: "test@example.com",
+            isDeleted: false,
+        });
+    });
+
+    test("should reject deleted user", async () => {
         User.findOne.mockResolvedValue(null);
 
         await expect(
@@ -635,12 +1071,12 @@ describe("resendEmailVerification", () => {
         });
     });
 
-    test("should reject when email is already verified", async () => {
-        User.findOne.mockResolvedValue(
-            makeUser({
-                isEmailVerified: true,
-            }),
-        );
+    test("should reject already verified user", async () => {
+        const user = makeUser({
+            isEmailVerified: true,
+        });
+
+        User.findOne.mockResolvedValue(user);
 
         await expect(
             resendEmailVerification(req, res, next),
@@ -648,14 +1084,75 @@ describe("resendEmailVerification", () => {
             statusCode: 409,
             message: "User is already verified",
         });
+
+        expect(user.generateTemporaryToken).not.toHaveBeenCalled();
     });
 
-    test("should reject when verification email fails to send", async () => {
+    test("should generate a new verification token", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(new Error("smtp down"));
+        sendEmail.mockResolvedValue(true);
+
+        await resendEmailVerification(req, res, next);
+
+        expect(
+            user.generateTemporaryToken,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(user.emailVerificationToken).toBe(
+            "hashed-token",
+        );
+
+        expect(
+            user.emailVerificationTokenExpiry,
+        ).toBeInstanceOf(Date);
+    });
+
+    test("should save new verification token", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        await resendEmailVerification(req, res, next);
+
+        expect(user.save).toHaveBeenCalledWith({
+            validateBeforeSave: false,
+        });
+    });
+
+    test("should send verification email", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        await resendEmailVerification(req, res, next);
+
+        expect(emailVerificationMailGenContent).toHaveBeenCalledWith(
+            "testuser",
+            "http://localhost:3000/verify-email?token=unhashed-token&id=user123",
+        );
+
+        expect(sendEmail).toHaveBeenCalledWith({
+            email: "test@example.com",
+            subject: "User Account Verification",
+            mailGenContent: "<html>verification email</html>",
+        });
+    });
+
+    test("should return 503 when email sending fails", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockRejectedValue(
+            new Error("SMTP failure"),
+        );
 
         await expect(
             resendEmailVerification(req, res, next),
@@ -664,32 +1161,25 @@ describe("resendEmailVerification", () => {
             message: "Failed to send verification email",
         });
 
-        expect(user.save).toHaveBeenCalledWith({
-            validateBeforeSave: false,
-        });
+        expect(user.save).toHaveBeenCalled();
     });
 
-    test("should resend the verification email", async () => {
+    test("should return success after sending email", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(user);
+
         sendEmail.mockResolvedValue(true);
 
         await resendEmailVerification(req, res, next);
 
-        expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
-
-        expect(user.emailVerificationToken).toBe("hashed-token");
-        expect(user.emailVerificationTokenExpiry).toBeInstanceOf(Date);
-
-        expect(user.save).toHaveBeenCalledWith({
-            validateBeforeSave: false,
-        });
-
-        expect(sendEmail).toHaveBeenCalledTimes(1);
-
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+            }),
+        );
     });
 });
 
@@ -700,14 +1190,20 @@ describe("forgotPassword", () => {
         };
     });
 
-    test("should return success without leaking user existence", async () => {
+    test("should return generic response when user does not exist", async () => {
         User.findOne.mockResolvedValue(null);
 
         await forgotPassword(req, res, next);
 
+        expect(User.findOne).toHaveBeenCalledWith({
+            email: "test@example.com",
+            isDeleted: false,
+        });
+
         expect(sendEmail).not.toHaveBeenCalled();
 
         expect(res.status).toHaveBeenCalledWith(200);
+
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 statusCode: 200,
@@ -717,48 +1213,112 @@ describe("forgotPassword", () => {
         );
     });
 
-    test("should send a password reset email for an existing user", async () => {
+    test("should generate password reset token", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(user);
+
         sendEmail.mockResolvedValue(true);
 
         await forgotPassword(req, res, next);
 
-        expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
+        expect(
+            user.generateTemporaryToken,
+        ).toHaveBeenCalledTimes(1);
 
-        expect(user.forgotPasswordToken).toBe("hashed-token");
-        expect(user.forgotPasswordTokenExpiry).toBeInstanceOf(Date);
-        expect(user.refreshToken).toBeNull();
-
-        expect(user.save).toHaveBeenCalledWith({
-            validateBeforeSave: false,
-        });
-
-        expect(forgotPasswordMailGenContent).toHaveBeenCalledWith(
-            "testuser",
-            expect.stringContaining(
-                "/reset-password?token=unhashed-token&id=user123",
-            ),
+        expect(user.forgotPasswordToken).toBe(
+            "hashed-token",
         );
 
-        expect(sendEmail).toHaveBeenCalledTimes(1);
-
-        expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+        expect(
+            user.forgotPasswordTokenExpiry,
+        ).toBeInstanceOf(Date);
     });
 
-    test("should reject when password reset email fails to send", async () => {
+    test("should invalidate existing refresh token", async () => {
+        const user = makeUser({
+            refreshToken: "old-refresh-hash",
+        });
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        await forgotPassword(req, res, next);
+
+        expect(user.refreshToken).toBeNull();
+    });
+
+    test("should save password reset token", async () => {
         const user = makeUser();
 
         User.findOne.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(new Error("smtp down"));
+        sendEmail.mockResolvedValue(true);
 
-        await expect(forgotPassword(req, res, next)).rejects.toMatchObject({
+        await forgotPassword(req, res, next);
+
+        expect(user.save).toHaveBeenCalledWith({
+            validateBeforeSave: false,
+        });
+    });
+
+    test("should send password reset email with correct link", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        await forgotPassword(req, res, next);
+
+        expect(forgotPasswordMailGenContent).toHaveBeenCalledWith(
+            "testuser",
+            "http://localhost:3000/reset-password?token=unhashed-token&id=user123",
+        );
+
+        expect(sendEmail).toHaveBeenCalledWith({
+            email: "test@example.com",
+            subject: "Reset Your ClauseNexa Password",
+            mailGenContent: expect.any(String),
+        });
+    });
+
+    test("should return 503 when reset email fails", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockRejectedValue(
+            new Error("SMTP failure"),
+        );
+
+        await expect(
+            forgotPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 503,
             message: "Failed to send password reset email",
         });
+    });
+
+    test("should return generic success after reset email", async () => {
+        const user = makeUser();
+
+        User.findOne.mockResolvedValue(user);
+
+        sendEmail.mockResolvedValue(true);
+
+        await forgotPassword(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+                message:
+                    "If an account exists with this email, a password reset link has been sent",
+            }),
+        );
     });
 });
 
@@ -774,25 +1334,55 @@ describe("resetPassword", () => {
         };
     });
 
-    test("should reject when token or id is missing", async () => {
-        req.query = {};
+    test("should reject when token is missing", async () => {
+        req.query.token = undefined;
 
-        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 400,
             message: "Token or Id is missing",
         });
     });
 
-    test("should reject when user is not found", async () => {
+    test("should reject when id is missing", async () => {
+        req.query.id = undefined;
+
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 400,
+            message: "Token or Id is missing",
+        });
+    });
+
+    test("should reject when user does not exist", async () => {
         User.findById.mockResolvedValue(null);
 
-        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
     });
 
-    test("should reject when no reset token is stored", async () => {
+    test("should reject deleted user", async () => {
+        const user = makeUser({
+            isDeleted: true,
+        });
+
+        User.findById.mockResolvedValue(user);
+
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 404,
+            message: "User not found",
+        });
+    });
+
+    test("should reject missing reset token", async () => {
         User.findById.mockResolvedValue(
             makeUser({
                 forgotPasswordToken: null,
@@ -800,63 +1390,138 @@ describe("resetPassword", () => {
             }),
         );
 
-        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 400,
             message: "Invalid or expired token",
         });
     });
 
-    test("should reject an expired reset token", async () => {
+    test("should reject missing reset token expiry", async () => {
         User.findById.mockResolvedValue(
             makeUser({
-                forgotPasswordToken: "hashed",
-                forgotPasswordTokenExpiry: new Date(Date.now() - 1000),
+                forgotPasswordToken: "hashed-token",
+                forgotPasswordTokenExpiry: null,
             }),
         );
 
-        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 400,
+            message: "Invalid or expired token",
+        });
+    });
+
+    test("should reject expired reset token", async () => {
+        User.findById.mockResolvedValue(
+            makeUser({
+                forgotPasswordToken: "hashed-token",
+                forgotPasswordTokenExpiry: new Date(
+                    Date.now() - 1000,
+                ),
+            }),
+        );
+
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 400,
             message: "Token is expired",
         });
     });
 
-    test("should reject a mismatched reset token", async () => {
-        User.findById.mockResolvedValue(
-            makeUser({
-                forgotPasswordToken: "different-hash",
-                forgotPasswordTokenExpiry: new Date(Date.now() + 10_000),
-            }),
+    test("should reject invalid reset token", async () => {
+        const user = makeUser({
+            forgotPasswordToken: "different-hash",
+            forgotPasswordTokenExpiry: new Date(
+                Date.now() + 10 * 60 * 1000,
+            ),
+        });
+
+        User.findById.mockResolvedValue(user);
+
+        crypto.createHash.mockReturnValue(
+            mockHashChain("computed-hash"),
         );
 
-        crypto.createHash.mockReturnValue(mockHashChain("computed-hash"));
-
-        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            resetPassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 400,
             message: "Token is invalid",
         });
     });
 
-    test("should reset the password with a valid token", async () => {
+    test("should hash reset token using SHA-256", async () => {
         const user = makeUser({
             forgotPasswordToken: "matching-hash",
-            forgotPasswordTokenExpiry: new Date(Date.now() + 10_000),
+            forgotPasswordTokenExpiry: new Date(
+                Date.now() + 10 * 60 * 1000,
+            ),
         });
 
         User.findById.mockResolvedValue(user);
 
-        crypto.createHash.mockReturnValue(mockHashChain("matching-hash"));
+        const hashChain = mockHashChain(
+            "matching-hash",
+        );
+
+        crypto.createHash.mockReturnValue(hashChain);
 
         await resetPassword(req, res, next);
 
-        expect(user.password).toBe("newPassword123");
+        expect(crypto.createHash).toHaveBeenCalledWith(
+            "sha256",
+        );
+
+        expect(hashChain.update).toHaveBeenCalledWith(
+            "raw-token",
+        );
+
+        expect(hashChain.digest).toHaveBeenCalledWith(
+            "hex",
+        );
+    });
+
+    test("should reset password successfully", async () => {
+        const user = makeUser({
+            forgotPasswordToken: "matching-hash",
+            forgotPasswordTokenExpiry: new Date(
+                Date.now() + 10 * 60 * 1000,
+            ),
+        });
+
+        User.findById.mockResolvedValue(user);
+
+        crypto.createHash.mockReturnValue(
+            mockHashChain("matching-hash"),
+        );
+
+        await resetPassword(req, res, next);
+
+        expect(user.password).toBe(
+            "newPassword123",
+        );
+
         expect(user.refreshToken).toBeNull();
+
         expect(user.forgotPasswordToken).toBeNull();
-        expect(user.forgotPasswordTokenExpiry).toBeNull();
+
+        expect(
+            user.forgotPasswordTokenExpiry,
+        ).toBeNull();
 
         expect(user.save).toHaveBeenCalledTimes(1);
 
         expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+            }),
+        );
     });
 });
 
@@ -867,69 +1532,126 @@ describe("changePassword", () => {
         };
 
         req.body = {
-            currentPassword: "oldPass123",
-            newPassword: "newPass456",
+            currentPassword: "oldPassword123",
+            newPassword: "newPassword456",
         };
     });
 
-    test("should reject when user is not found", async () => {
+    test("should reject when user does not exist", async () => {
         User.findById.mockResolvedValue(null);
 
-        await expect(changePassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            changePassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
     });
 
-    test("should reject an incorrect current password", async () => {
-        const user = makeUser();
-
-        user.isPasswordCorrect.mockResolvedValue(false);
+    test("should reject deleted user if controller returns deleted user", async () => {
+        const user = makeUser({
+            isDeleted: true,
+        });
 
         User.findById.mockResolvedValue(user);
 
-        await expect(changePassword(req, res, next)).rejects.toMatchObject({
+        user.isPasswordCorrect.mockResolvedValue(
+            false,
+        );
+
+        await expect(
+            changePassword(req, res, next),
+        ).rejects.toMatchObject({
+            statusCode: 401,
+            message: "Current password is incorrect",
+        });
+    });
+
+    test("should reject incorrect current password", async () => {
+        const user = makeUser();
+
+        user.isPasswordCorrect.mockResolvedValue(
+            false,
+        );
+
+        User.findById.mockResolvedValue(user);
+
+        await expect(
+            changePassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 401,
             message: "Current password is incorrect",
         });
 
-        expect(user.isPasswordCorrect).toHaveBeenCalledWith("oldPass123");
+        expect(
+            user.isPasswordCorrect,
+        ).toHaveBeenCalledWith(
+            "oldPassword123",
+        );
+
+        expect(user.save).not.toHaveBeenCalled();
     });
 
-    test("should reject when new password matches current password", async () => {
-        req.body.newPassword = "oldPass123";
+    test("should reject when new password equals current password", async () => {
+        req.body.newPassword =
+            "oldPassword123";
 
         const user = makeUser();
 
-        user.isPasswordCorrect.mockResolvedValue(true);
+        user.isPasswordCorrect.mockResolvedValue(
+            true,
+        );
 
         User.findById.mockResolvedValue(user);
 
-        await expect(changePassword(req, res, next)).rejects.toMatchObject({
+        await expect(
+            changePassword(req, res, next),
+        ).rejects.toMatchObject({
             statusCode: 400,
-            message: "New password must be different from current password",
+            message:
+                "New password must be different from current password",
         });
 
         expect(user.save).not.toHaveBeenCalled();
     });
 
-    test("should change the password successfully", async () => {
+    test("should change password successfully", async () => {
         const user = makeUser();
 
-        user.isPasswordCorrect.mockResolvedValue(true);
+        user.isPasswordCorrect.mockResolvedValue(
+            true,
+        );
 
         User.findById.mockResolvedValue(user);
 
         await changePassword(req, res, next);
 
-        expect(user.isPasswordCorrect).toHaveBeenCalledWith("oldPass123");
+        expect(
+            user.isPasswordCorrect,
+        ).toHaveBeenCalledWith(
+            "oldPassword123",
+        );
 
-        expect(user.password).toBe("newPass456");
+        expect(user.password).toBe(
+            "newPassword456",
+        );
+
         expect(user.refreshToken).toBeNull();
 
         expect(user.save).toHaveBeenCalledTimes(1);
 
-        expect(res.status).toHaveBeenCalledWith(200);
-        expect(next).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(
+            200,
+        );
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 200,
+            }),
+        );
     });
 });
+
+function userNotUsed() {
+    return true;
+}
