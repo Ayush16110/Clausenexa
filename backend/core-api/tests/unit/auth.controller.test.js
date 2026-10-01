@@ -271,9 +271,7 @@ describe("registerUser", () => {
 
         User.create.mockResolvedValue(user);
 
-        User.findById.mockReturnValue(
-            mockUserSelect(makeUser()),
-        );
+        User.findById.mockReturnValue(mockUserSelect(makeUser()));
 
         sendEmail.mockResolvedValue(true);
 
@@ -313,9 +311,7 @@ describe("registerUser", () => {
         User.findOne.mockResolvedValue(null);
         User.create.mockResolvedValue(user);
 
-        User.findById.mockReturnValue(
-            mockUserSelect(makeUser()),
-        );
+        User.findById.mockReturnValue(mockUserSelect(makeUser()));
 
         sendEmail.mockResolvedValue(true);
 
@@ -334,9 +330,7 @@ describe("registerUser", () => {
         User.findOne.mockResolvedValue(null);
         User.create.mockResolvedValue(user);
 
-        User.findById.mockReturnValue(
-            mockUserSelect(makeUser()),
-        );
+        User.findById.mockReturnValue(mockUserSelect(makeUser()));
 
         sendEmail.mockResolvedValue(true);
 
@@ -354,9 +348,7 @@ describe("registerUser", () => {
         User.findOne.mockResolvedValue(null);
         User.create.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(
-            new Error("SMTP server unavailable"),
-        );
+        sendEmail.mockRejectedValue(new Error("SMTP server unavailable"));
 
         await expect(registerUser(req, res, next)).rejects.toMatchObject({
             statusCode: 503,
@@ -377,9 +369,7 @@ describe("registerUser", () => {
 
         sendEmail.mockResolvedValue(true);
 
-        User.findById.mockReturnValue(
-            mockUserSelect(null),
-        );
+        User.findById.mockReturnValue(mockUserSelect(null));
 
         await expect(registerUser(req, res, next)).rejects.toMatchObject({
             statusCode: 500,
@@ -411,9 +401,7 @@ describe("loginUser", () => {
 
         User.findById
             .mockResolvedValueOnce(user)
-            .mockReturnValueOnce(
-                mockUserSelect(loggedInUser),
-            );
+            .mockReturnValueOnce(mockUserSelect(loggedInUser));
 
         await loginUser(req, res, next);
 
@@ -422,35 +410,24 @@ describe("loginUser", () => {
             isDeleted: false,
         });
 
-        expect(user.isPasswordCorrect).toHaveBeenCalledWith(
-            "password123",
-        );
+        expect(user.isPasswordCorrect).toHaveBeenCalledWith("password123");
 
         expect(user.generateAccessToken).toHaveBeenCalledTimes(1);
 
         expect(user.generateRefreshToken).toHaveBeenCalledTimes(1);
 
-        expect(bcrypt.hash).toHaveBeenCalledWith(
-            "refresh-token",
-            10,
-        );
+        expect(bcrypt.hash).toHaveBeenCalledWith("refresh-token", 10);
 
-        expect(user.refreshToken).toBe(
-            "hashed-refresh-token",
-        );
+        expect(user.refreshToken).toBe("hashed-refresh-token");
 
         expect(user.save).toHaveBeenCalledWith({
             validateBeforeSave: false,
         });
 
-        expect(res.cookie).toHaveBeenCalledWith(
-            "accessToken",
-            "access-token",
-            {
-                httpOnly: true,
-                secure: false,
-            },
-        );
+        expect(res.cookie).toHaveBeenCalledWith("accessToken", "access-token", {
+            httpOnly: true,
+            secure: false,
+        });
 
         expect(res.cookie).toHaveBeenCalledWith(
             "refreshToken",
@@ -557,11 +534,9 @@ describe("loginUser", () => {
             }),
         );
 
-        User.findById
-            .mockResolvedValueOnce(user)
-            .mockReturnValueOnce({
-                select,
-            });
+        User.findById.mockResolvedValueOnce(user).mockReturnValueOnce({
+            select,
+        });
 
         await loginUser(req, res, next);
 
@@ -670,9 +645,7 @@ describe("verifyEmail", () => {
         User.findById.mockResolvedValue(
             makeUser({
                 emailVerificationToken: "hashed-token",
-                emailVerificationTokenExpiry: new Date(
-                    Date.now() - 1000,
-                ),
+                emailVerificationTokenExpiry: new Date(Date.now() - 1000),
             }),
         );
 
@@ -685,33 +658,25 @@ describe("verifyEmail", () => {
     test("should reject invalid verification token", async () => {
         const user = makeUser({
             emailVerificationToken: "different-hash",
-            emailVerificationTokenExpiry: new Date(
-                Date.now() + 10 * 60 * 1000,
-            ),
+            emailVerificationTokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
         });
 
         User.findById.mockResolvedValue(user);
 
-        crypto.createHash.mockReturnValue(
-            mockHashChain("computed-hash"),
-        );
+        crypto.createHash.mockReturnValue(mockHashChain("computed-hash"));
 
         await expect(verifyEmail(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Invalid verification token",
         });
 
-        expect(crypto.createHash).toHaveBeenCalledWith(
-            "sha256",
-        );
+        expect(crypto.createHash).toHaveBeenCalledWith("sha256");
     });
 
     test("should verify a valid email token", async () => {
         const user = makeUser({
             emailVerificationToken: "matching-hash",
-            emailVerificationTokenExpiry: new Date(
-                Date.now() + 10 * 60 * 1000,
-            ),
+            emailVerificationTokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
         });
 
         User.findById.mockResolvedValue(user);
@@ -722,13 +687,9 @@ describe("verifyEmail", () => {
 
         await verifyEmail(req, res, next);
 
-        expect(hashChain.update).toHaveBeenCalledWith(
-            "raw-token",
-        );
+        expect(hashChain.update).toHaveBeenCalledWith("raw-token");
 
-        expect(hashChain.digest).toHaveBeenCalledWith(
-            "hex",
-        );
+        expect(hashChain.digest).toHaveBeenCalledWith("hex");
 
         expect(user.isEmailVerified).toBe(true);
 
@@ -754,9 +715,7 @@ describe("refreshAccessToken", () => {
     test("should reject missing refresh token", async () => {
         req.cookies = {};
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Refresh token is missing or invalid",
         });
@@ -769,9 +728,7 @@ describe("refreshAccessToken", () => {
             throw new Error("invalid jwt");
         });
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid or expired refresh token",
         });
@@ -782,13 +739,9 @@ describe("refreshAccessToken", () => {
             _id: "user123",
         });
 
-        User.findById.mockReturnValue(
-            mockUserSelect(null),
-        );
+        User.findById.mockReturnValue(mockUserSelect(null));
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toBeDefined();
+        await expect(refreshAccessToken(req, res, next)).rejects.toBeDefined();
 
         expect(jwt.verify).toHaveBeenCalledWith(
             "raw-refresh-token",
@@ -801,13 +754,9 @@ describe("refreshAccessToken", () => {
             _id: "user123",
         });
 
-        User.findById.mockReturnValue(
-            mockUserSelect(null),
-        );
+        User.findById.mockReturnValue(mockUserSelect(null));
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid Refresh Token",
         });
@@ -823,13 +772,9 @@ describe("refreshAccessToken", () => {
             refreshToken: "stored-hash",
         });
 
-        User.findById.mockReturnValue(
-            mockUserSelect(deletedUser),
-        );
+        User.findById.mockReturnValue(mockUserSelect(deletedUser));
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Account is deleted",
         });
@@ -846,15 +791,11 @@ describe("refreshAccessToken", () => {
             refreshToken: "stored-hash",
         });
 
-        User.findById.mockReturnValue(
-            mockUserSelect(user),
-        );
+        User.findById.mockReturnValue(mockUserSelect(user));
 
         bcrypt.compare.mockResolvedValue(false);
 
-        await expect(
-            refreshAccessToken(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(refreshAccessToken(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Refresh token is invalid",
         });
@@ -875,9 +816,7 @@ describe("refreshAccessToken", () => {
         });
 
         User.findById
-            .mockReturnValueOnce(
-                mockUserSelect(user),
-            )
+            .mockReturnValueOnce(mockUserSelect(user))
             .mockResolvedValueOnce(user);
 
         bcrypt.compare.mockResolvedValue(true);
@@ -893,27 +832,18 @@ describe("refreshAccessToken", () => {
 
         expect(user.generateRefreshToken).toHaveBeenCalledTimes(1);
 
-        expect(bcrypt.hash).toHaveBeenCalledWith(
-            "refresh-token",
-            10,
-        );
+        expect(bcrypt.hash).toHaveBeenCalledWith("refresh-token", 10);
 
-        expect(user.refreshToken).toBe(
-            "hashed-refresh-token",
-        );
+        expect(user.refreshToken).toBe("hashed-refresh-token");
 
         expect(user.save).toHaveBeenCalledWith({
             validateBeforeSave: false,
         });
 
-        expect(res.cookie).toHaveBeenCalledWith(
-            "accessToken",
-            "access-token",
-            {
-                httpOnly: true,
-                secure: false,
-            },
-        );
+        expect(res.cookie).toHaveBeenCalledWith("accessToken", "access-token", {
+            httpOnly: true,
+            secure: false,
+        });
 
         expect(res.cookie).toHaveBeenCalledWith(
             "refreshToken",
@@ -937,9 +867,7 @@ describe("refreshAccessToken", () => {
         });
 
         User.findById
-            .mockReturnValueOnce(
-                mockUserSelect(user),
-            )
+            .mockReturnValueOnce(mockUserSelect(user))
             .mockResolvedValueOnce(user);
 
         bcrypt.compare.mockResolvedValue(true);
@@ -948,14 +876,9 @@ describe("refreshAccessToken", () => {
 
         expect(user.generateRefreshToken).toHaveBeenCalled();
 
-        expect(bcrypt.hash).toHaveBeenCalledWith(
-            "refresh-token",
-            10,
-        );
+        expect(bcrypt.hash).toHaveBeenCalledWith("refresh-token", 10);
 
-        expect(user.refreshToken).toBe(
-            "hashed-refresh-token",
-        );
+        expect(user.refreshToken).toBe("hashed-refresh-token");
     });
 });
 
@@ -989,41 +912,29 @@ describe("logout", () => {
     });
 
     test("should clear access token cookie", async () => {
-        User.findByIdAndUpdate.mockResolvedValue(
-            makeUser(),
-        );
+        User.findByIdAndUpdate.mockResolvedValue(makeUser());
 
         await logout(req, res, next);
 
-        expect(res.clearCookie).toHaveBeenCalledWith(
-            "accessToken",
-            {
-                httpOnly: true,
-                secure: false,
-            },
-        );
+        expect(res.clearCookie).toHaveBeenCalledWith("accessToken", {
+            httpOnly: true,
+            secure: false,
+        });
     });
 
     test("should clear refresh token cookie", async () => {
-        User.findByIdAndUpdate.mockResolvedValue(
-            makeUser(),
-        );
+        User.findByIdAndUpdate.mockResolvedValue(makeUser());
 
         await logout(req, res, next);
 
-        expect(res.clearCookie).toHaveBeenCalledWith(
-            "refreshToken",
-            {
-                httpOnly: true,
-                secure: false,
-            },
-        );
+        expect(res.clearCookie).toHaveBeenCalledWith("refreshToken", {
+            httpOnly: true,
+            secure: false,
+        });
     });
 
     test("should return successful logout response", async () => {
-        User.findByIdAndUpdate.mockResolvedValue(
-            makeUser(),
-        );
+        User.findByIdAndUpdate.mockResolvedValue(makeUser());
 
         await logout(req, res, next);
 
@@ -1097,17 +1008,11 @@ describe("resendEmailVerification", () => {
 
         await resendEmailVerification(req, res, next);
 
-        expect(
-            user.generateTemporaryToken,
-        ).toHaveBeenCalledTimes(1);
+        expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
 
-        expect(user.emailVerificationToken).toBe(
-            "hashed-token",
-        );
+        expect(user.emailVerificationToken).toBe("hashed-token");
 
-        expect(
-            user.emailVerificationTokenExpiry,
-        ).toBeInstanceOf(Date);
+        expect(user.emailVerificationTokenExpiry).toBeInstanceOf(Date);
     });
 
     test("should save new verification token", async () => {
@@ -1150,9 +1055,7 @@ describe("resendEmailVerification", () => {
 
         User.findOne.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(
-            new Error("SMTP failure"),
-        );
+        sendEmail.mockRejectedValue(new Error("SMTP failure"));
 
         await expect(
             resendEmailVerification(req, res, next),
@@ -1222,17 +1125,11 @@ describe("forgotPassword", () => {
 
         await forgotPassword(req, res, next);
 
-        expect(
-            user.generateTemporaryToken,
-        ).toHaveBeenCalledTimes(1);
+        expect(user.generateTemporaryToken).toHaveBeenCalledTimes(1);
 
-        expect(user.forgotPasswordToken).toBe(
-            "hashed-token",
-        );
+        expect(user.forgotPasswordToken).toBe("hashed-token");
 
-        expect(
-            user.forgotPasswordTokenExpiry,
-        ).toBeInstanceOf(Date);
+        expect(user.forgotPasswordTokenExpiry).toBeInstanceOf(Date);
     });
 
     test("should invalidate existing refresh token", async () => {
@@ -1289,13 +1186,9 @@ describe("forgotPassword", () => {
 
         User.findOne.mockResolvedValue(user);
 
-        sendEmail.mockRejectedValue(
-            new Error("SMTP failure"),
-        );
+        sendEmail.mockRejectedValue(new Error("SMTP failure"));
 
-        await expect(
-            forgotPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(forgotPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 503,
             message: "Failed to send password reset email",
         });
@@ -1337,9 +1230,7 @@ describe("resetPassword", () => {
     test("should reject when token is missing", async () => {
         req.query.token = undefined;
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Token or Id is missing",
         });
@@ -1348,9 +1239,7 @@ describe("resetPassword", () => {
     test("should reject when id is missing", async () => {
         req.query.id = undefined;
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Token or Id is missing",
         });
@@ -1359,9 +1248,7 @@ describe("resetPassword", () => {
     test("should reject when user does not exist", async () => {
         User.findById.mockResolvedValue(null);
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
@@ -1374,9 +1261,7 @@ describe("resetPassword", () => {
 
         User.findById.mockResolvedValue(user);
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
@@ -1390,9 +1275,7 @@ describe("resetPassword", () => {
             }),
         );
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Invalid or expired token",
         });
@@ -1406,9 +1289,7 @@ describe("resetPassword", () => {
             }),
         );
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Invalid or expired token",
         });
@@ -1418,15 +1299,11 @@ describe("resetPassword", () => {
         User.findById.mockResolvedValue(
             makeUser({
                 forgotPasswordToken: "hashed-token",
-                forgotPasswordTokenExpiry: new Date(
-                    Date.now() - 1000,
-                ),
+                forgotPasswordTokenExpiry: new Date(Date.now() - 1000),
             }),
         );
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Token is expired",
         });
@@ -1435,20 +1312,14 @@ describe("resetPassword", () => {
     test("should reject invalid reset token", async () => {
         const user = makeUser({
             forgotPasswordToken: "different-hash",
-            forgotPasswordTokenExpiry: new Date(
-                Date.now() + 10 * 60 * 1000,
-            ),
+            forgotPasswordTokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
         });
 
         User.findById.mockResolvedValue(user);
 
-        crypto.createHash.mockReturnValue(
-            mockHashChain("computed-hash"),
-        );
+        crypto.createHash.mockReturnValue(mockHashChain("computed-hash"));
 
-        await expect(
-            resetPassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(resetPassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
             message: "Token is invalid",
         });
@@ -1457,61 +1328,43 @@ describe("resetPassword", () => {
     test("should hash reset token using SHA-256", async () => {
         const user = makeUser({
             forgotPasswordToken: "matching-hash",
-            forgotPasswordTokenExpiry: new Date(
-                Date.now() + 10 * 60 * 1000,
-            ),
+            forgotPasswordTokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
         });
 
         User.findById.mockResolvedValue(user);
 
-        const hashChain = mockHashChain(
-            "matching-hash",
-        );
+        const hashChain = mockHashChain("matching-hash");
 
         crypto.createHash.mockReturnValue(hashChain);
 
         await resetPassword(req, res, next);
 
-        expect(crypto.createHash).toHaveBeenCalledWith(
-            "sha256",
-        );
+        expect(crypto.createHash).toHaveBeenCalledWith("sha256");
 
-        expect(hashChain.update).toHaveBeenCalledWith(
-            "raw-token",
-        );
+        expect(hashChain.update).toHaveBeenCalledWith("raw-token");
 
-        expect(hashChain.digest).toHaveBeenCalledWith(
-            "hex",
-        );
+        expect(hashChain.digest).toHaveBeenCalledWith("hex");
     });
 
     test("should reset password successfully", async () => {
         const user = makeUser({
             forgotPasswordToken: "matching-hash",
-            forgotPasswordTokenExpiry: new Date(
-                Date.now() + 10 * 60 * 1000,
-            ),
+            forgotPasswordTokenExpiry: new Date(Date.now() + 10 * 60 * 1000),
         });
 
         User.findById.mockResolvedValue(user);
 
-        crypto.createHash.mockReturnValue(
-            mockHashChain("matching-hash"),
-        );
+        crypto.createHash.mockReturnValue(mockHashChain("matching-hash"));
 
         await resetPassword(req, res, next);
 
-        expect(user.password).toBe(
-            "newPassword123",
-        );
+        expect(user.password).toBe("newPassword123");
 
         expect(user.refreshToken).toBeNull();
 
         expect(user.forgotPasswordToken).toBeNull();
 
-        expect(
-            user.forgotPasswordTokenExpiry,
-        ).toBeNull();
+        expect(user.forgotPasswordTokenExpiry).toBeNull();
 
         expect(user.save).toHaveBeenCalledTimes(1);
 
@@ -1540,9 +1393,7 @@ describe("changePassword", () => {
     test("should reject when user does not exist", async () => {
         User.findById.mockResolvedValue(null);
 
-        await expect(
-            changePassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(changePassword(req, res, next)).rejects.toMatchObject({
             statusCode: 404,
             message: "User not found",
         });
@@ -1555,13 +1406,9 @@ describe("changePassword", () => {
 
         User.findById.mockResolvedValue(user);
 
-        user.isPasswordCorrect.mockResolvedValue(
-            false,
-        );
+        user.isPasswordCorrect.mockResolvedValue(false);
 
-        await expect(
-            changePassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(changePassword(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Current password is incorrect",
         });
@@ -1570,46 +1417,32 @@ describe("changePassword", () => {
     test("should reject incorrect current password", async () => {
         const user = makeUser();
 
-        user.isPasswordCorrect.mockResolvedValue(
-            false,
-        );
+        user.isPasswordCorrect.mockResolvedValue(false);
 
         User.findById.mockResolvedValue(user);
 
-        await expect(
-            changePassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(changePassword(req, res, next)).rejects.toMatchObject({
             statusCode: 401,
             message: "Current password is incorrect",
         });
 
-        expect(
-            user.isPasswordCorrect,
-        ).toHaveBeenCalledWith(
-            "oldPassword123",
-        );
+        expect(user.isPasswordCorrect).toHaveBeenCalledWith("oldPassword123");
 
         expect(user.save).not.toHaveBeenCalled();
     });
 
     test("should reject when new password equals current password", async () => {
-        req.body.newPassword =
-            "oldPassword123";
+        req.body.newPassword = "oldPassword123";
 
         const user = makeUser();
 
-        user.isPasswordCorrect.mockResolvedValue(
-            true,
-        );
+        user.isPasswordCorrect.mockResolvedValue(true);
 
         User.findById.mockResolvedValue(user);
 
-        await expect(
-            changePassword(req, res, next),
-        ).rejects.toMatchObject({
+        await expect(changePassword(req, res, next)).rejects.toMatchObject({
             statusCode: 400,
-            message:
-                "New password must be different from current password",
+            message: "New password must be different from current password",
         });
 
         expect(user.save).not.toHaveBeenCalled();
@@ -1618,31 +1451,21 @@ describe("changePassword", () => {
     test("should change password successfully", async () => {
         const user = makeUser();
 
-        user.isPasswordCorrect.mockResolvedValue(
-            true,
-        );
+        user.isPasswordCorrect.mockResolvedValue(true);
 
         User.findById.mockResolvedValue(user);
 
         await changePassword(req, res, next);
 
-        expect(
-            user.isPasswordCorrect,
-        ).toHaveBeenCalledWith(
-            "oldPassword123",
-        );
+        expect(user.isPasswordCorrect).toHaveBeenCalledWith("oldPassword123");
 
-        expect(user.password).toBe(
-            "newPassword456",
-        );
+        expect(user.password).toBe("newPassword456");
 
         expect(user.refreshToken).toBeNull();
 
         expect(user.save).toHaveBeenCalledTimes(1);
 
-        expect(res.status).toHaveBeenCalledWith(
-            200,
-        );
+        expect(res.status).toHaveBeenCalledWith(200);
 
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
