@@ -48,6 +48,10 @@ users [icon: user, color: blue] {
   passwordResetTokenHash string
   passwordResetTokenExpiresAt timestamp
 
+  usernameLastChangedAt timestamp
+  isDeleted boolean
+  deletedAt timestamp
+
   createdAt timestamp
   updatedAt timestamp
 }
@@ -62,13 +66,13 @@ contracts [icon: file-text, color: blue] {
 
   id string pk
 
-  userId string
+  userId mongoose Object
 
   title string
-  description string
-  status string
 
-  activeDocumentId string
+  activeDocumentId mongoose Object
+  isDeleted boolean
+  deletedAt timestamp
 
   createdAt timestamp
   updatedAt timestamp
