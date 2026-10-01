@@ -55,4 +55,68 @@ const getContractByID = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, contract, "Contract fetched successfully"));
 });
 
-export { createContract, getContracts, getContractByID };
+const updateContract = asyncHandler(async (req, res) => {
+    const { contractId } = req.params;
+    const { title } = req.body;
+
+    if (!contractId) {
+        throw new ApiError(400, "Contract id is required");
+    }
+
+    const contract = await Contract.findOne({
+        _id: contractId,
+        userId: req.user._id,
+        isDeleted: false,
+    });
+
+    if (!contract) {
+        throw new ApiError(404, "Contract not found");
+    }
+
+    if (title && title != contract.title) {
+        contract.title = title;
+    }
+
+    const updatedContract = await contract.save();
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, updatedContract, "Title updated successfully"),
+        );
+});
+
+const deleteContract = asyncHandler(async (req, res) => {
+    const { contractId } = req.params;
+
+    if (!contractId) {
+        throw new ApiError(400, "Contract id is required");
+    }
+
+    const contract = await Contract.findOne({
+        _id: contractId,
+        userId: req.user._id,
+        isDeleted: false,
+    });
+
+    if (!contract) {
+        throw new ApiError(404, "Contract not found");
+    }
+
+    contract.isDeleted = true;
+    contract.deletedAt = new Date();
+
+    await contract.save();
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Contract deleted successfully"));
+});
+
+export {
+    createContract,
+    getContracts,
+    getContractByID,
+    updateContract,
+    deleteContract,
+};
