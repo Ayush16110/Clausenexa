@@ -38,6 +38,10 @@ const documentSchema = new mongoose.Schema(
             required: true,
             min: 1,
         },
+        fileHash: {
+            type: String,
+            required: true,
+        },
 
         storageKey: {
             type: String,
@@ -87,9 +91,7 @@ const documentSchema = new mongoose.Schema(
 
         activeProcessingVersion: {
             type: Number,
-            required: true,
-            default: 1,
-            min: 1,
+            default: null,
         },
 
         isDeleted: {
@@ -114,6 +116,12 @@ documentSchema.index({
 
 documentSchema.index({
     userId: 1,
+    isDeleted: 1,
+});
+
+documentSchema.index({
+    contractId: 1,
+    fileHash: 1,
     isDeleted: 1,
 });
 

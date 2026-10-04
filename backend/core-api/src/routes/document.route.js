@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
     createDocument,
+    deleteDocument,
     getAllDocuments,
     getDocumentById,
 } from "../controllers/document.controller.js";
@@ -17,6 +18,9 @@ router
 
 router.route("/contracts/:contractId/documents").get(getAllDocuments);
 
-router.route("/documents/:documentId").get(getDocumentById);
+router
+    .route("/documents/:documentId")
+    .get(getDocumentById)
+    .delete(deleteDocument);
 
 export default router;

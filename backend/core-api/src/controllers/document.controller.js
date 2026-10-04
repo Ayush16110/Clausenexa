@@ -7,6 +7,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { generateDocumentStorageKey } from "../utils/storage.utils.js";
+import { generateFileHash } from "../utils/hash.utils.js";
 
 const createDocument = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
@@ -30,12 +31,28 @@ const createDocument = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Contract not found");
     }
 
+    const fileHash = generateFileHash(file.buffer);
+
+    const existingDocument = await Document.findOne({
+        contractId,
+        fileHash,
+        isDeleted: false,
+    });
+
+    if (existingDocument) {
+        throw new ApiError(
+            409,
+            "This document has already been uploaded to this contract",
+        );
+    }
+
     const document = new Document({
         contractId,
         userId: req.user._id,
         fileName: file.originalname,
         mimeType: file.mimetype,
         fileSize: file.size,
+        fileHash,
     });
 
     const storageKey = generateDocumentStorageKey(contractId, document._id);
@@ -142,4 +159,49 @@ const getDocumentById = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, document, "Document fetched successfully"));
 });
 
-export { createDocument, getAllDocuments, getDocumentById };
+const deleteDocument = asyncHandler(async (req, res) => {
+    const { documentId } = req.params;
+
+    if (!mongoose.isValidObjectId(documentId)) {
+        throw new ApiError(400, "Invalid document ID");
+    }
+
+    const document = await Document.findOne({
+        _id: documentId,
+        userId: req.user._id,
+        isDeleted: false,
+    });
+
+    if (!document) {
+        throw new ApiError(404, "Document not found");
+    }
+
+    const contract = await Contract.findOne({
+        _id: document.contractId,
+        userId: req.user._id,
+        isDeleted: false,
+    });
+
+    if (!contract) {
+        throw new ApiError(404, "Contract not found");
+    }
+
+    if (
+        contract.activeDocumentId &&
+        contract.activeDocumentId.equals(document._id)
+    ) {
+        contract.activeDocumentId = null;
+        await contract.save();
+    }
+
+    document.isDeleted = true;
+    document.deletedAt = new Date();
+
+    await document.save();
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, null, "Document deleted successfully"));
+});
+
+export { createDocument, getAllDocuments, getDocumentById, deleteDocument };
