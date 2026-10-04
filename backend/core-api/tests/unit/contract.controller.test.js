@@ -20,6 +20,8 @@ const {
     deleteContract,
 } = await import("../../src/controllers/contract.controller.js");
 
+const contractId = "507f1f77bcf86cd799439011";
+
 describe("createContract", () => {
     let req;
     let res;
@@ -47,7 +49,7 @@ describe("createContract", () => {
 
     test("should create a contract successfully", async () => {
         const createdContract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Employment Agreement",
             activeDocumentId: null,
@@ -71,7 +73,7 @@ describe("createContract", () => {
 
     test("should use authenticated user's id when creating contract", async () => {
         mockContractCreate.mockResolvedValue({
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Employment Agreement",
         });
@@ -88,7 +90,7 @@ describe("createContract", () => {
         req.body.title = "Vendor Agreement";
 
         mockContractCreate.mockResolvedValue({
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Vendor Agreement",
         });
@@ -237,7 +239,7 @@ describe("getContractByID", () => {
                 _id: "user123",
             },
             params: {
-                contractId: "contract123",
+                contractId,
             },
         };
 
@@ -251,7 +253,7 @@ describe("getContractByID", () => {
 
     test("should return the contract belonging to the authenticated user", async () => {
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Employment Agreement",
             isDeleted: false,
@@ -262,7 +264,7 @@ describe("getContractByID", () => {
         await getContractByID(req, res, next);
 
         expect(mockContractFindOne).toHaveBeenCalledWith({
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             isDeleted: false,
         });
@@ -301,6 +303,42 @@ describe("getContractByID", () => {
 
         expect(next).toHaveBeenCalledWith(databaseError);
     });
+
+    test("should return 400 when contract ID is missing", async () => {
+        req.params.contractId = undefined;
+
+        getContractByID(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Contract ID is required",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalled();
+    });
+
+    test("should return 400 when contract ID is invalid", async () => {
+        req.params.contractId = "contract123";
+
+        getContractByID(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Invalid contract ID",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalled();
+    });
 });
 
 describe("updateContract", () => {
@@ -316,7 +354,7 @@ describe("updateContract", () => {
                 _id: "user123",
             },
             params: {
-                contractId: "contract123",
+                contractId,
             },
             body: {
                 title: "Updated Employment Agreement",
@@ -333,14 +371,14 @@ describe("updateContract", () => {
 
     test("should update the contract title successfully", async () => {
         const updatedContract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Updated Employment Agreement",
             isDeleted: false,
         };
 
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Old Employment Agreement",
             isDeleted: false,
@@ -350,10 +388,11 @@ describe("updateContract", () => {
         mockContractFindOne.mockResolvedValue(contract);
 
         updateContract(req, res, next);
+
         await new Promise(setImmediate);
 
         expect(mockContractFindOne).toHaveBeenCalledWith({
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             isDeleted: false,
         });
@@ -362,6 +401,7 @@ describe("updateContract", () => {
         expect(contract.save).toHaveBeenCalledTimes(1);
 
         expect(res.status).toHaveBeenCalledWith(200);
+
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 statusCode: 200,
@@ -411,7 +451,7 @@ describe("updateContract", () => {
         const databaseError = new Error("Database error");
 
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Old Employment Agreement",
             isDeleted: false,
@@ -435,14 +475,14 @@ describe("updateContract", () => {
 
     test("should return the updated contract returned by save", async () => {
         const updatedContract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Updated Employment Agreement",
             isDeleted: false,
         };
 
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Old Employment Agreement",
             isDeleted: false,
@@ -452,6 +492,7 @@ describe("updateContract", () => {
         mockContractFindOne.mockResolvedValue(contract);
 
         updateContract(req, res, next);
+
         await new Promise(setImmediate);
 
         expect(res.json).toHaveBeenCalledWith(
@@ -459,6 +500,40 @@ describe("updateContract", () => {
                 data: updatedContract,
             }),
         );
+    });
+
+    test("should return 400 when contract ID is missing", async () => {
+        req.params.contractId = undefined;
+
+        updateContract(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Contract id is required",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
+    });
+
+    test("should return 400 when contract ID is invalid", async () => {
+        req.params.contractId = "contract123";
+
+        updateContract(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Invalid contract ID",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
     });
 });
 
@@ -475,7 +550,7 @@ describe("deleteContract", () => {
                 _id: "user123",
             },
             params: {
-                contractId: "contract123",
+                contractId,
             },
         };
 
@@ -489,13 +564,13 @@ describe("deleteContract", () => {
 
     test("should soft delete the contract successfully", async () => {
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Employment Agreement",
             isDeleted: false,
             deletedAt: null,
             save: jest.fn().mockResolvedValue({
-                _id: "contract123",
+                _id: contractId,
                 userId: "user123",
                 title: "Employment Agreement",
                 isDeleted: true,
@@ -506,10 +581,11 @@ describe("deleteContract", () => {
         mockContractFindOne.mockResolvedValue(contract);
 
         deleteContract(req, res, next);
+
         await new Promise(setImmediate);
 
         expect(mockContractFindOne).toHaveBeenCalledWith({
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             isDeleted: false,
         });
@@ -519,6 +595,7 @@ describe("deleteContract", () => {
         expect(contract.save).toHaveBeenCalledTimes(1);
 
         expect(res.status).toHaveBeenCalledWith(200);
+
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 statusCode: 200,
@@ -568,7 +645,7 @@ describe("deleteContract", () => {
         const databaseError = new Error("Database error");
 
         const contract = {
-            _id: "contract123",
+            _id: contractId,
             userId: "user123",
             title: "Employment Agreement",
             isDeleted: false,
@@ -590,5 +667,39 @@ describe("deleteContract", () => {
 
         expect(res.status).not.toHaveBeenCalled();
         expect(res.json).not.toHaveBeenCalled();
+    });
+
+    test("should return 400 when contract ID is missing", async () => {
+        req.params.contractId = undefined;
+
+        deleteContract(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Contract id is required",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
+    });
+
+    test("should return 400 when contract ID is invalid", async () => {
+        req.params.contractId = "contract123";
+
+        deleteContract(req, res, next);
+
+        await new Promise(setImmediate);
+
+        expect(next).toHaveBeenCalledWith(
+            expect.objectContaining({
+                statusCode: 400,
+                message: "Invalid contract ID",
+            }),
+        );
+
+        expect(mockContractFindOne).not.toHaveBeenCalled();
     });
 });

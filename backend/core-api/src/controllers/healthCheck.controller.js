@@ -2,6 +2,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import mongoose from "mongoose";
+import { checkR2Health } from "../services/r2.service.js";
 
 const healthCheck = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, "Core-API service is running"));
@@ -9,13 +10,31 @@ const healthCheck = asyncHandler(async (req, res) => {
 
 const readinessCheck = asyncHandler(async (req, res) => {
     const mongoReady = mongoose.connection.readyState === 1;
+    const r2Ready = await checkR2Health();
 
-    if (!mongoReady) {
+    const dependencies = {
+        mongodb: mongoReady ? "available" : "unavailable",
+        r2: r2Ready ? "available" : "unavailable",
+    };
+
+    if (!mongoReady || !r2Ready) {
         throw new ApiError(503, "Core-API is not ready", [
-            {
-                dependency: "mongodb",
-                status: "unavailable",
-            },
+            ...(!mongoReady
+                ? [
+                      {
+                          dependency: "mongodb",
+                          status: "unavailable",
+                      },
+                  ]
+                : []),
+            ...(!r2Ready
+                ? [
+                      {
+                          dependency: "r2",
+                          status: "unavailable",
+                      },
+                  ]
+                : []),
         ]);
     }
 
@@ -24,9 +43,7 @@ const readinessCheck = asyncHandler(async (req, res) => {
             200,
             {
                 status: "ready",
-                dependencies: {
-                    mongodb: "available",
-                },
+                dependencies,
             },
             "Core-API is ready",
         ),

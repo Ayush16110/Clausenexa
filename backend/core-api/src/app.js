@@ -8,6 +8,7 @@ import healthCheckRoute from "./routes/healthCheck.route.js";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import contractRoutes from "./routes/contract.route.js";
+import documentRouter from "./routes/document.route.js";
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use("/api/v1/healthCheck", healthCheckRoute);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/contracts", contractRoutes);
+app.use("/api/v1", documentRouter);
 
 // error handling Middleware
 app.use(errorMiddleware);

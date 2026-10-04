@@ -128,7 +128,8 @@ POST   /contracts/:contractId/chat
 ### Documents
 
 ```text
-POST   /documents
+POST   /contracts/:contractId/documents
+GET    /contracts/:contractId/documents
 GET    /documents/:documentId
 DELETE /documents/:documentId
 ```

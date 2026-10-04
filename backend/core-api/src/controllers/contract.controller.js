@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
@@ -40,6 +41,10 @@ const getContractByID = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Contract ID is required");
     }
 
+    if (!mongoose.isValidObjectId(contractId)) {
+        throw new ApiError(400, "Invalid contract ID");
+    }
+
     const contract = await Contract.findOne({
         _id: contractId,
         userId: req.user._id,
@@ -61,6 +66,10 @@ const updateContract = asyncHandler(async (req, res) => {
 
     if (!contractId) {
         throw new ApiError(400, "Contract id is required");
+    }
+
+    if (!mongoose.isValidObjectId(contractId)) {
+        throw new ApiError(400, "Invalid contract ID");
     }
 
     const contract = await Contract.findOne({
@@ -91,6 +100,10 @@ const deleteContract = asyncHandler(async (req, res) => {
 
     if (!contractId) {
         throw new ApiError(400, "Contract id is required");
+    }
+
+    if (!mongoose.isValidObjectId(contractId)) {
+        throw new ApiError(400, "Invalid contract ID");
     }
 
     const contract = await Contract.findOne({

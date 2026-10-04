@@ -20,6 +20,11 @@ const env = {
     mailtrapName: process.env.MAILTRAP_NAME,
     clientUrl: process.env.CLIENT_URL,
     nodeEnv: process.env.NODE_ENV || "development",
+    r2AccountId: process.env.R2_ACCOUNT_ID,
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    r2BucketName: process.env.R2_BUCKET_NAME,
+    documentProcessingServiceUrl: process.env.DOCUMENT_PROCESSING_SERVICE_URL,
 };
 
 export default env;
