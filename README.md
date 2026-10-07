@@ -4,11 +4,11 @@
 
 ClauseNexa is a production-oriented legal contract analysis platform built around asynchronous document processing, Retrieval-Augmented Generation (RAG), vector search, and AI-powered contract analysis.
 
-> **Project Status:** ðŸš§ Active Development â€” Backend in Progress
+> **Project Status:** 🚧 Active Development — Backend in Progress
 
 ---
 
-## ðŸ“Œ Problem Statement
+## 📌 Problem Statement
 
 Legal contracts can contain hundreds of pages of complex clauses, obligations, liabilities, and conditions. Manually reviewing these documents is time-consuming and inefficient.
 
@@ -16,7 +16,7 @@ ClauseNexa addresses the engineering challenges of large-document processing thr
 
 ---
 
-# ðŸŽ¯ Project Goals
+# 🎯 Project Goals
 
 - Upload and manage legal contract documents.
 - Process large PDF documents asynchronously.
@@ -31,50 +31,50 @@ ClauseNexa addresses the engineering challenges of large-document processing thr
 
 ---
 
-# ðŸ—ï¸ Architecture
+# 🏗️ Architecture
 
 ```text
                          Frontend
-                            â”‚
-                            â–¼
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚   Core API   â”‚
-                    â”‚    :5000     â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜
-                           â”‚
-              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-              â”‚            â”‚            â”‚
-              â–¼            â–¼            â–¼
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │   Core API   │
+                    │    :5000     │
+                    └──────┬───────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+              ▼            ▼            ▼
           MongoDB         R2       Processing API
                                       :8000
-                                        â”‚
-                                        â–¼
+                                        │
+                                        ▼
                                   Redis / BullMQ
-                                        â”‚
-                                        â–¼
+                                        │
+                                        ▼
                               Document Worker
-                                        â”‚
-                                        â–¼
+                                        │
+                                        ▼
                                   Vector DB
 
 
                     Core API
-                       â”‚
-                       â–¼
+                       │
+                       ▼
                 RAG / AI Service
                     :3000
-                       â”‚
-              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”
-              â–¼                 â–¼
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
           Vector DB          MongoDB
-              â”‚
-              â–¼
+              │
+              ▼
           LLM Provider
 ```
 
 ### Service responsibilities
 
-#### Core API â€” `:5000`
+#### Core API — `:5000`
 
 Responsible for:
 
@@ -90,7 +90,7 @@ Responsible for:
 
 The Core API does **not** perform heavy PDF processing or AI context construction.
 
-#### Document Processing Service â€” `:8000`
+#### Document Processing Service — `:8000`
 
 Responsible for:
 
@@ -104,7 +104,7 @@ Responsible for:
 - Vector database storage
 - Processing status updates
 
-#### RAG / AI Service â€” `:3000`
+#### RAG / AI Service — `:3000`
 
 Responsible for:
 
@@ -118,43 +118,43 @@ Responsible for:
 
 ---
 
-# ðŸ”„ Document Processing Workflow
+# 🔄 Document Processing Workflow
 
 Document processing is intentionally asynchronous.
 
 ```text
 User
-  â”‚
-  â–¼
+  │
+  ▼
 Frontend
-  â”‚
-  â–¼
+  │
+  ▼
 Core API :5000
-  â”‚
-  â”œâ”€â”€ Validate request
-  â”œâ”€â”€ Upload PDF â†’ Cloudflare R2
-  â”œâ”€â”€ Store metadata â†’ MongoDB
-  â”‚
-  â–¼
+  │
+  ├── Validate request
+  ├── Upload PDF → Cloudflare R2
+  ├── Store metadata → MongoDB
+  │
+  ▼
 Document Processing Service :8000
-  â”‚
-  â”œâ”€â”€ Create BullMQ job
-  â”‚
-  â–¼
+  │
+  ├── Create BullMQ job
+  │
+  ▼
 202 Accepted
-  â”‚
-  â–¼
+  │
+  ▼
 Redis / BullMQ
-  â”‚
-  â–¼
+  │
+  ▼
 Worker
-  â”‚
-  â”œâ”€â”€ Fetch PDF from R2
-  â”œâ”€â”€ Extract text
-  â”œâ”€â”€ Clean text
-  â”œâ”€â”€ Chunk document
-  â”œâ”€â”€ Generate embeddings
-  â””â”€â”€ Store vectors
+  │
+  ├── Fetch PDF from R2
+  ├── Extract text
+  ├── Clean text
+  ├── Chunk document
+  ├── Generate embeddings
+  └── Store vectors
 ```
 
 The API does not wait for the entire document to be processed.
@@ -169,7 +169,7 @@ The API does not wait for the entire document to be processed.
 
 ---
 
-# ðŸ“„ Document Management
+# 📄 Document Management
 
 ### API Endpoints
 
@@ -197,21 +197,21 @@ DELETE /api/v1/documents/:documentId
 
 ---
 
-# ðŸ” Document Processing States
+# 🔐 Document Processing States
 
 ```text
 queued
-  â†“
+  ↓
 processing
-  â†“
+  ↓
 extracting
-  â†“
+  ↓
 chunking
-  â†“
+  ↓
 embedding
-  â†“
+  ↓
 storing_vectors
-  â†“
+  ↓
 completed
 ```
 
@@ -224,7 +224,7 @@ processingError = ...
 
 ---
 
-# ðŸ§  Document Versioning
+# 🧠 Document Versioning
 
 ClauseNexa treats uploaded documents as independent document versions.
 
@@ -246,50 +246,50 @@ A new document does not immediately become active.
 ```text
 Current:
 Contract
- â””â”€â”€ activeDocumentId â†’ Document A
+ └── activeDocumentId → Document A
 
 New upload:
 Contract
- â”œâ”€â”€ activeDocumentId â†’ Document A
- â””â”€â”€ Document B â†’ processing
+ ├── activeDocumentId → Document A
+ └── Document B → processing
 
 If Document B fails:
- â””â”€â”€ Document A remains active
+ └── Document A remains active
 
 If Document B succeeds:
- â””â”€â”€ Document B becomes active
+ └── Document B becomes active
 ```
 
 This prevents failed processing from replacing a working document.
 
 ---
 
-# ðŸ¤– AI Contract Q&A
+# 🤖 AI Contract Q&A
 
 The planned RAG pipeline:
 
 ```text
 User Question
-      â”‚
-      â–¼
+      │
+      ▼
 RAG / AI Service
-      â”‚
-      â–¼
+      │
+      ▼
 Generate Query Embedding
-      â”‚
-      â–¼
+      │
+      ▼
 Vector Search
-      â”‚
-      â–¼
+      │
+      ▼
 Retrieve Relevant Chunks
-      â”‚
-      â–¼
+      │
+      ▼
 Build Context
-      â”‚
-      â–¼
+      │
+      ▼
 LLM
-      â”‚
-      â–¼
+      │
+      ▼
 Grounded Answer
 ```
 
@@ -297,25 +297,25 @@ Responses are designed to include relevant evidence such as contract information
 
 ---
 
-# âš–ï¸ Automated Contract Audit
+# ⚖️ Automated Contract Audit
 
 The planned audit pipeline:
 
 ```text
 Contract
-   â†“
+   ↓
 Retrieve Relevant Clauses
-   â†“
+   ↓
 AI Analysis
-   â†“
+   ↓
 Risk Detection
-   â†“
+   ↓
 Classification
-   â†“
+   ↓
 Evidence
-   â†“
+   ↓
 Recommendation
-   â†“
+   ↓
 Audit Report
 ```
 
@@ -346,7 +346,7 @@ Recommendation
 
 ---
 
-# ðŸ› ï¸ Technology Stack
+# 🛠️ Technology Stack
 
 ## Current Backend
 
@@ -375,33 +375,33 @@ Recommendation
 
 ---
 
-# ðŸ“ Project Structure
+# 📁 Project Structure
 
 ```text
 ClauseNexa/
-â”‚
-â”œâ”€â”€ backend/
-â”‚   â”œâ”€â”€ core-api/
-â”‚   â”‚   â”œâ”€â”€ src/
-â”‚   â”‚   â””â”€â”€ tests/
-â”‚   â”‚
-â”‚   â”œâ”€â”€ document-processing/
-â”‚   â”‚
-â”‚   â””â”€â”€ rag-service/
-â”‚
-â”œâ”€â”€ client/
-â”‚
-â”œâ”€â”€ docs/
-â”‚   â”œâ”€â”€ architecture/
-â”‚   â””â”€â”€ diagrams/
-â”‚
-â”œâ”€â”€ README.md
-â””â”€â”€ .gitignore
+│
+├── backend/
+│   ├── core-api/
+│   │   ├── src/
+│   │   └── tests/
+│   │
+│   ├── document-processing/
+│   │
+│   └── rag-service/
+│
+├── client/
+│
+├── docs/
+│   ├── architecture/
+│   └── diagrams/
+│
+├── README.md
+└── .gitignore
 ```
 
 ---
 
-# ðŸ§ª Testing
+# 🧪 Testing
 
 Testing is being implemented alongside backend development.
 
@@ -433,9 +433,9 @@ Additional service and integration tests will be added as those services are imp
 
 ---
 
-# ðŸ—ºï¸ Development Roadmap
+# 🗺️ Development Roadmap
 
-## Weeks 1â€“3 â€” Core Backend âœ…
+## Weeks 1–3 — Core Backend ✅
 
 - [x] Project definition
 - [x] Functional requirements
@@ -455,7 +455,7 @@ Additional service and integration tests will be added as those services are imp
 - [x] Document processing integration point
 - [x] Document controller tests
 
-## Week 4 â€” Document Processing Service
+## Week 4 — Document Processing Service
 
 - [ ] Document Processing Service
 - [ ] Redis
@@ -466,7 +466,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Job retry strategy
 - [ ] Processing service tests
 
-## Week 5 â€” PDF Processing Pipeline
+## Week 5 — PDF Processing Pipeline
 
 - [ ] PDF extraction
 - [ ] Text cleaning
@@ -476,7 +476,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Failure handling
 - [ ] Retry support
 
-## Week 6 â€” Embeddings + Vector DB
+## Week 6 — Embeddings + Vector DB
 
 - [ ] Embedding generation
 - [ ] Vector database
@@ -485,7 +485,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Processing versioning
 - [ ] Active document activation
 
-## Week 7 â€” RAG Service
+## Week 7 — RAG Service
 
 - [ ] RAG Service
 - [ ] Query embeddings
@@ -496,7 +496,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Citation handling
 - [ ] AI Q&A testing
 
-## Week 8 â€” AI Audit + Backend Completion
+## Week 8 — AI Audit + Backend Completion
 
 - [ ] Automated contract audit engine
 - [ ] Risk classification
@@ -509,7 +509,7 @@ Additional service and integration tests will be added as those services are imp
 
 > **Backend milestone:** At the end of Week 8, the complete backend should be usable independently without the frontend.
 
-## Week 9 â€” Frontend Core
+## Week 9 — Frontend Core
 
 - [ ] React application
 - [ ] Authentication UI
@@ -519,7 +519,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Processing status
 - [ ] Contract workspace
 
-## Week 10 â€” Frontend AI + UX
+## Week 10 — Frontend AI + UX
 
 - [ ] AI chat
 - [ ] Citation UI
@@ -530,7 +530,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Responsive UI
 - [ ] UX polish
 
-## Week 11 â€” Beta Testing + Improvements
+## Week 11 — Beta Testing + Improvements
 
 - [ ] End-to-end testing
 - [ ] Large PDF testing
@@ -542,7 +542,7 @@ Additional service and integration tests will be added as those services are imp
 - [ ] Bug fixing
 - [ ] Regression testing
 
-## Week 12 â€” Production Deployment
+## Week 12 — Production Deployment
 
 - [ ] Production infrastructure
 - [ ] Environment configuration
@@ -559,26 +559,26 @@ Additional service and integration tests will be added as those services are imp
 
 ---
 
-# ðŸ“… 12-Week Plan
+# 📅 12-Week Plan
 
 ```text
-Week 1â€“3   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ  Core Backend       âœ…
-Week 4     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Processing Service
-Week 5     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  PDF Pipeline
-Week 6     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Embeddings + Vector DB
-Week 7     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  RAG Service
-Week 8     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  AI Audit + Hardening
+Week 1–3   ████████████████████  Core Backend       ✅
+Week 4     ░░░░░░░░░░░░░░░░░░░░  Processing Service
+Week 5     ░░░░░░░░░░░░░░░░░░░░  PDF Pipeline
+Week 6     ░░░░░░░░░░░░░░░░░░░░  Embeddings + Vector DB
+Week 7     ░░░░░░░░░░░░░░░░░░░░  RAG Service
+Week 8     ░░░░░░░░░░░░░░░░░░░░  AI Audit + Hardening
 
-Week 9     â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Frontend Core
-Week 10    â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Frontend AI + UX
+Week 9     ░░░░░░░░░░░░░░░░░░░░  Frontend Core
+Week 10    ░░░░░░░░░░░░░░░░░░░░  Frontend AI + UX
 
-Week 11    â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Beta Testing
-Week 12    â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘  Production Deployment
+Week 11    ░░░░░░░░░░░░░░░░░░░░  Beta Testing
+Week 12    ░░░░░░░░░░░░░░░░░░░░  Production Deployment
 ```
 
 ---
 
-# ðŸ“š Architecture Documentation
+# 📚 Architecture Documentation
 
 Current architecture documentation includes:
 
@@ -590,7 +590,7 @@ These documents define service responsibilities, communication boundaries, data 
 
 ---
 
-# ðŸŽ“ Engineering Objectives
+# 🎓 Engineering Objectives
 
 ClauseNexa is being built as a production-oriented engineering project with a focus on:
 
@@ -615,7 +615,7 @@ ClauseNexa is being built as a production-oriented engineering project with a fo
 
 ---
 
-# âš ï¸ Project Status
+# ⚠️ Project Status
 
 ClauseNexa is currently under active development.
 
@@ -625,7 +625,7 @@ This project is currently intended for **educational and portfolio purposes**.
 
 ---
 
-# ðŸ‘¨â€ðŸ’» Author
+# 👨‍💻 Author
 
 **Ayush Narayan Gupta**
 
