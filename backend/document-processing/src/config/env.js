@@ -6,6 +6,6 @@ dotenv.config({
 
 const env = {
     port: process.env.PORT,
-}
+};
 
 export default env;
