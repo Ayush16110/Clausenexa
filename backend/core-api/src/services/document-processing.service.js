@@ -31,4 +31,16 @@ const createProcessingJob = async (documentId) => {
     }
 };
 
-export { createProcessingJob };
+const checkDocumentProcessingHealth = async () => {
+    try {
+        const response = await fetch(
+            `${env.documentProcessingServiceUrl}/health`,
+        );
+
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
+};
+
+export { createProcessingJob, checkDocumentProcessingHealth };
