@@ -1,6 +1,7 @@
 import express from "express";
 import errorMiddleware from "./middlewares/error.middleware.js";
 import requestLogger from "./middlewares/requestLogger.middleware.js";
+import jobRouter from "./routes/job.routes.js";
 
 const app = express();
 
@@ -23,6 +24,8 @@ app.get("/health", (req, res) => {
     });
 });
 
+app.use("/internal/v1/jobs", jobRouter);
+
 app.use(errorMiddleware);
 
-export { app };
+export default app;

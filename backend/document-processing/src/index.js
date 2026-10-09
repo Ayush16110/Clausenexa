@@ -1,8 +1,20 @@
-import { app } from "./app.js";
+import app from "./app.js";
+import connectDB from "./db/mongo.js";
 import env from "./config/env.js";
+import { documentProcessingQueue } from "./queues/document-processing.queue.js";
+import { documentProcessingWorker } from "./workers/document-processing.worker.js";
 
-const PORT = env.port || 8000;
+const port = env.port;
 
-app.listen(PORT, () => {
-    console.log(`Document Processing Service running on port ${PORT}`);
-});
+connectDB()
+    .then(() => {
+        app.listen(port, () => {
+            console.log(
+                `⚡️[server]: Server is running at http://localhost:${port}`,
+            );
+        });
+    })
+    .catch((error) => {
+        console.error("❌DB connection error: ", error);
+        process.exit(1);
+    });
