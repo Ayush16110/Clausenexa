@@ -5,8 +5,12 @@ import {
     DocumentProcessingStatusEnum,
 } from "../utils/document.constants.js";
 import { downloadDocument } from "./storage.service.js";
+import { validatePdfBuffer } from "../utils/pdf.utils.js";
+import { UnrecoverableError } from "bullmq";
+import { submitDocumentForConversion } from "./docling.service.js";
 
 const processDocument = async (documentId) => {
+    // basic validation
     if (!documentId) {
         throw new Error("Document ID is required");
     }
@@ -15,16 +19,27 @@ const processDocument = async (documentId) => {
         throw new Error("Invalid document ID");
     }
 
+    // get document
     const document = await getDocumentById(documentId);
 
     console.log(`Starting processing for document: ${document._id}`);
     console.log(`Storage key: ${document.storageKey}`);
 
+    // pdf download
     const pdfBuffer = await downloadDocument(document.storageKey);
 
     console.log(`Downloaded PDF: ${document.fileName}`);
     console.log(`Downloaded size: ${pdfBuffer.length} bytes`);
 
+    // pdf validation
+    try {
+        validatePdfBuffer(pdfBuffer);
+    } catch (error) {
+        console.error("PDF validation failed:", error.message);
+        throw new UnrecoverableError(error.message);
+    }
+
+    // update document
     const updatedDocument = await updateDocument(documentId, {
         processingStatus: DocumentProcessingStatusEnum.PROCESSING,
         processingStage: DocumentProcessingStageEnum.EXTRACTING,
@@ -35,6 +50,8 @@ const processDocument = async (documentId) => {
     if (!updatedDocument) {
         throw new Error("Document not found or has been deleted");
     }
+
+    // FIXME: Convert PDF to md
 
     // FIXME: Extract and clean PDF text
     // FIXME: Split text into chunks
