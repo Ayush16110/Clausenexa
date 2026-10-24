@@ -1,0 +1,31 @@
+{
+    "name": "document-processing",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "nodemon src/index.js",
+        "start": "node src/index.js",
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+        "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@aws-sdk/client-s3": "^3.1149.0",
+        "bullmq": "^6.3.12",
+        "dotenv": "^18.0.6",
+        "express": "^5.2.1",
+        "ioredis": "^6.0.0",
+        "mongoose": "^9.11.1"
+    },
+    "devDependencies": {
+        "jest": "^30.5.2",
+        "nodemon": "^3.1.14",
+        "prettier": "^3.9.9"
+    }
+}
