@@ -1,4 +1,10 @@
 import mongoose from "mongoose";
+import {
+    DocumentConversionStateEnum,
+    AvailableDocumentConversionState,
+    AvailableDocumentProcessingStage,
+    AvailableDocumentProcessingStatus,
+} from "../utils/document.constants.js";
 
 const documentSchema = new mongoose.Schema(
     {
@@ -12,22 +18,31 @@ const documentSchema = new mongoose.Schema(
             required: true,
         },
 
+        fileHash: {
+            type: String,
+            required: true,
+        },
+
+        doclingTaskId: {
+            type: String,
+            default: null,
+        },
+
+        doclingConversionState: {
+            type: String,
+            default: DocumentConversionStateEnum.PENDING,
+            enum: AvailableDocumentConversionState,
+        },
+
         processingStatus: {
             type: String,
-            enum: ["queued", "processing", "completed", "failed"],
+            enum: AvailableDocumentProcessingStatus,
             required: true,
         },
 
         processingStage: {
             type: String,
-            enum: [
-                "queued",
-                "extracting",
-                "chunking",
-                "embedding",
-                "storing_vectors",
-                "completed",
-            ],
+            enum: AvailableDocumentProcessingStage,
             required: true,
         },
 

@@ -21,3 +21,15 @@ export const DocumentProcessingStageEnum = {
 export const AvailableDocumentProcessingStage = Object.values(
     DocumentProcessingStageEnum,
 );
+
+export const DocumentConversionStateEnum = {
+    PENDING: "pending",
+    SUBMITTING: "submitting",
+    SUBMITTED: "submitted",
+    COMPLETED: "completed",
+    FAILED: "failed",
+};
+
+export const AvailableDocumentConversionState = Object.values(
+    DocumentConversionStateEnum,
+);

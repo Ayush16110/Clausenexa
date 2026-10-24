@@ -7,7 +7,7 @@ import {
 import { downloadDocument } from "./storage.service.js";
 import { validatePdfBuffer } from "../utils/pdf.utils.js";
 import { UnrecoverableError } from "bullmq";
-import { submitDocumentForConversion } from "./docling.service.js";
+import { extractMarkdownFromPdf } from "./docling.service.js";
 
 const processDocument = async (documentId) => {
     // basic validation
@@ -51,12 +51,28 @@ const processDocument = async (documentId) => {
         throw new Error("Document not found or has been deleted");
     }
 
-    // FIXME: Convert PDF to md
+    // Convert PDF to md
+    const markdown = await extractMarkdownFromPdf(
+        updatedDocument,
+        pdfBuffer,
+        document.fileName,
+    );
 
     // FIXME: Extract and clean PDF text
     // FIXME: Split text into chunks
     // FIXME: Generate embeddings
     // FIXME: Store vectors
+
+    // Mark extraction workflow as completed
+    const completedDocument = await updateDocument(documentId, {
+        processingStatus: DocumentProcessingStatusEnum.COMPLETED,
+        processingProgress: 100,
+        processingError: null,
+    });
+
+    if (!completedDocument) {
+        throw new Error("Failed to mark document processing as completed");
+    }
 
     return {
         documentId,
