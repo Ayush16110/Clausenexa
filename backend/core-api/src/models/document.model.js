@@ -2,8 +2,10 @@ import mongoose from "mongoose";
 import {
     AvailableDocumentProcessingStage,
     AvailableDocumentProcessingStatus,
+    AvailableDocumentConversionState,
     DocumentProcessingStageEnum,
     DocumentProcessingStatusEnum,
+    DocumentConversionStateEnum,
 } from "../utils/document.constants.js";
 
 const documentSchema = new mongoose.Schema(
@@ -38,6 +40,18 @@ const documentSchema = new mongoose.Schema(
             required: true,
             min: 1,
         },
+
+        doclingTaskId: {
+            type: String,
+            default: null,
+        },
+
+        doclingConversionState: {
+            type: String,
+            default: DocumentConversionStateEnum.PENDING,
+            enum: AvailableDocumentConversionState,
+        },
+
         fileHash: {
             type: String,
             required: true,
