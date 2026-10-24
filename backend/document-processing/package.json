@@ -7,6 +7,8 @@
     "scripts": {
         "dev": "nodemon src/index.js",
         "start": "node src/index.js",
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+        "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
@@ -22,6 +24,7 @@
         "mongoose": "^9.11.1"
     },
     "devDependencies": {
+        "jest": "^30.5.2",
         "nodemon": "^3.1.14",
         "prettier": "^3.9.9"
     }

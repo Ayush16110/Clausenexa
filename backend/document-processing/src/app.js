@@ -2,6 +2,7 @@ import express from "express";
 import errorMiddleware from "./middlewares/error.middleware.js";
 import requestLogger from "./middlewares/requestLogger.middleware.js";
 import jobRouter from "./routes/job.routes.js";
+import healthRouter from "./routes/health.routes.js";
 
 const app = express();
 
@@ -16,13 +17,7 @@ app.use(
 
 app.use(requestLogger);
 
-app.get("/health", (req, res) => {
-    res.status(200).json({
-        status: "ok",
-        service: "document-processing",
-        timestamp: new Date().toISOString(),
-    });
-});
+app.use("/health", healthRouter);
 
 app.use("/internal/v1/jobs", jobRouter);
 
