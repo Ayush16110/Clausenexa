@@ -25,6 +25,7 @@ const env = {
     r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     r2BucketName: process.env.R2_BUCKET_NAME,
     documentProcessingServiceUrl: process.env.DOCUMENT_PROCESSING_SERVICE_URL,
+    maxPdfPages: Number(process.env.MAX_PDF_PAGES || 300),
 };
 
 export default env;

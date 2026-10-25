@@ -8,6 +8,8 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { generateDocumentStorageKey } from "../utils/storage.utils.js";
 import { generateFileHash } from "../utils/hash.utils.js";
+import { getPdfPageCount } from "../utils/pdf.utils.js";
+import env from "../config/env.js";
 
 const createDocument = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
@@ -19,6 +21,15 @@ const createDocument = asyncHandler(async (req, res) => {
 
     if (!file) {
         throw new ApiError(400, "Document file is required");
+    }
+
+    const pageCount = await getPdfPageCount(file.buffer);
+
+    if (pageCount > env.maxPdfPages) {
+        throw new ApiError(
+            400,
+            `PDF exceeds the maximum allowed limit of ${env.maxPdfPages} pages. Received ${pageCount} pages.`,
+        );
     }
 
     const contract = await Contract.findOne({
