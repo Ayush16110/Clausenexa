@@ -8,6 +8,7 @@ import { downloadDocument } from "./storage.service.js";
 import { validatePdfBuffer } from "../utils/pdf.utils.js";
 import { UnrecoverableError } from "bullmq";
 import { extractMarkdownFromPdf } from "./docling.service.js";
+import { cleanMarkdown } from "../utils/markdown.utils.js";
 
 const processDocument = async (documentId) => {
     // basic validation
@@ -40,7 +41,7 @@ const processDocument = async (documentId) => {
     }
 
     // update document
-    const updatedDocument = await updateDocument(documentId, {
+    let updatedDocument = await updateDocument(documentId, {
         processingStatus: DocumentProcessingStatusEnum.PROCESSING,
         processingStage: DocumentProcessingStageEnum.EXTRACTING,
         processingProgress: 0,
@@ -58,7 +59,14 @@ const processDocument = async (documentId) => {
         document.fileName,
     );
 
-    // FIXME: Extract and clean PDF text
+    // Clean extracted Markdown
+    const cleanedMarkdown = cleanMarkdown(markdown);
+
+    updatedDocument = await updateDocument(documentId, {
+        processingStage: DocumentProcessingStageEnum.CHUNKING,
+        processingProgress: 25,
+    });
+
     // FIXME: Split text into chunks
     // FIXME: Generate embeddings
     // FIXME: Store vectors
