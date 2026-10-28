@@ -1,165 +1,174 @@
 # ClauseNexa
 
-> An AI-powered legal contract analysis platform designed to process, understand, and query complex legal documents.
+**An AI-powered legal contract analysis platform built for structured
+document processing, evidence-grounded retrieval, and contract risk
+analysis.**
 
-ClauseNexa is a production-oriented legal contract analysis platform built around asynchronous document processing, Retrieval-Augmented Generation (RAG), vector search, and AI-powered contract analysis.
+> **Project status:** Active development --- Core API and document
+> management foundation implemented; document-processing pipeline in
+> progress.
 
-> **Project Status:** 🚧 Active Development — Backend in Progress
+ClauseNexa is a production-oriented engineering project focused on
+processing complex legal documents and making their contents easier to
+search, understand, and analyze. Its planned pipeline combines
+asynchronous processing, object storage, structure-aware text chunking,
+vector search, and Retrieval-Augmented Generation (RAG).
 
----
+## Table of Contents
 
-## 📌 Problem Statement
+-   [Problem Statement](#problem-statement)
+-   [Project Goals](#project-goals)
+-   [Architecture](#architecture)
+-   [Document Processing Workflow](#document-processing-workflow)
+-   [Document Management](#document-management)
+-   [Processing States](#processing-states)
+-   [Document Versioning](#document-versioning)
+-   [Planned RAG and Contract Audit](#planned-rag-and-contract-audit)
+-   [Technology Stack](#technology-stack)
+-   [Repository Structure](#repository-structure)
+-   [Testing](#testing)
+-   [Development Roadmap](#development-roadmap)
+-   [Architecture Documentation](#architecture-documentation)
+-   [Engineering Focus](#engineering-focus)
+-   [Project Status](#project-status)
+-   [Author](#author)
 
-Legal contracts can contain hundreds of pages of complex clauses, obligations, liabilities, and conditions. Manually reviewing these documents is time-consuming and inefficient.
+## Problem Statement
 
-ClauseNexa addresses the engineering challenges of large-document processing through asynchronous processing, object storage, background workers, vector search, and a RAG-based AI pipeline.
+Legal contracts can contain hundreds of pages of clauses, obligations,
+liabilities, exceptions, and conditions. Manually reviewing them is
+time-consuming, and overlooking a qualification or related clause can
+lead to an incomplete understanding.
 
----
+ClauseNexa aims to address the engineering challenges of large-document
+processing with asynchronous jobs, reliable document lifecycle
+management, searchable document representations, and AI-assisted
+analysis grounded in retrieved evidence.
 
-# 🎯 Project Goals
+## Project Goals
 
-- Upload and manage legal contract documents.
-- Process large PDF documents asynchronously.
-- Extract, clean, and chunk document text.
-- Generate and store vector embeddings.
-- Enable contextual AI-powered contract Q&A.
-- Retrieve relevant clauses and document sections.
-- Provide page and clause references where available.
-- Perform automated contract risk analysis.
-- Maintain document processing and version information.
-- Design services that can scale independently.
+-   Upload and manage legal contract documents.
+-   Process large PDF documents asynchronously.
+-   Extract and clean document text.
+-   Chunk text while preserving legal structure and context.
+-   Generate and store vector embeddings.
+-   Retrieve relevant clauses and document sections.
+-   Support contextual, evidence-grounded contract Q&A.
+-   Provide clause and page references where reliable source information
+    is available.
+-   Support automated contract risk analysis.
+-   Track document processing state and processing versions.
+-   Keep service responsibilities clearly separated and independently
+    scalable.
 
----
+## Architecture
 
-# 🏗️ Architecture
+The intended architecture separates the core product API, document
+ingestion pipeline, and RAG/AI functionality.
 
-```text
-                         Frontend
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │   Core API   │
-                    │    :5000     │
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-              ▼            ▼            ▼
-          MongoDB         R2       Processing API
-                                      :8000
-                                        │
-                                        ▼
-                                  Redis / BullMQ
-                                        │
-                                        ▼
-                              Document Worker
-                                        │
-                                        ▼
-                                  Vector DB
+```mermaid
+flowchart TB
+    UI[React Frontend] --> API[Core API<br/>Express]
+    API <--> DB[(MongoDB)]
+    API <--> R2[(Cloudflare R2)]
+    API --> PROC[Document Processing API<br/>]
+    PROC --> QUEUE[(Redis + BullMQ)]
+    QUEUE --> WORKER[Background Document Worker]
+    R2 --> WORKER
 
+    subgraph INGESTION[Document Ingestion Pipeline]
+        WORKER --> EXTRACT[PDF Validation & Extraction]
+        EXTRACT --> CLEAN[Markdown Cleaning]
+        CLEAN --> CHUNK[Structure-aware Chunking]
+        CHUNK --> EMBED[Embedding Generation]
+        EMBED --> VDB[(Vector Database)]
+    end
 
-                    Core API
-                       │
-                       ▼
-                RAG / AI Service
-                    :3000
-                       │
-              ┌────────┴────────┐
-              ▼                 ▼
-          Vector DB          MongoDB
-              │
-              ▼
-          LLM Provider
+    API --> RAG[RAG / AI Service<br/>]
+    RAG --> VDB
+    RAG --> LLM[LLM Provider]
+    PROC <--> DB
+
+    classDef implemented fill:#173f35,stroke:#58a68c,color:#ffffff
+    classDef planned fill:#182b46,stroke:#6c9bd2,color:#ffffff
+    class API,DB,R2,EXTRACT,CLEAN implemented
+    class PROC,QUEUE,WORKER,CHUNK,EMBED,VDB,RAG,LLM,UI planned
 ```
 
-### Service responsibilities
-
-#### Core API — `:5000`
+### Core API -
 
 Responsible for:
 
-- Authentication and authorization
-- User management
-- Contract management
-- Document management
-- PDF upload handling
-- Cloudflare R2 integration
-- Document metadata
-- Calling the Document Processing Service
-- Returning processing status
+-   Authentication and authorization
+-   User and contract management
+-   Document management and PDF upload handling
+-   Cloudflare R2 integration
+-   Document metadata and lifecycle management
+-   Invoking the Document Processing Service
+-   Returning document and processing status
 
-The Core API does **not** perform heavy PDF processing or AI context construction.
+The Core API is not intended to perform heavy PDF processing or
+construct AI context synchronously.
 
-#### Document Processing Service — `:8000`
-
-Responsible for:
-
-- Creating document processing jobs
-- BullMQ queue management
-- Background workers
-- PDF extraction
-- Text cleaning
-- Document chunking
-- Embedding generation
-- Vector database storage
-- Processing status updates
-
-#### RAG / AI Service — `:3000`
+### Document Processing Service -
 
 Responsible for:
 
-- Query embedding
-- Vector retrieval
-- Contract-aware context construction
-- Prompt construction
-- LLM interaction
-- AI-powered contract Q&A
-- Contract audit analysis
+-   Creating document-processing jobs
+-   BullMQ queue and background-worker orchestration
+-   PDF download and extraction
+-   Extracted Markdown cleaning
+-   Structure-aware document chunking
+-   Embedding generation
+-   Vector database storage
+-   Processing status and error updates
 
----
+### RAG / AI Service -
 
-# 🔄 Document Processing Workflow
+Planned responsibilities:
 
-Document processing is intentionally asynchronous.
+-   Query embedding
+-   Vector retrieval and metadata filtering
+-   Contract-aware context construction
+-   Prompt construction
+-   LLM interaction
+-   Contract Q&A
+-   Contract audit analysis and evidence presentation
 
-```text
-User
-  │
-  ▼
-Frontend
-  │
-  ▼
-Core API :5000
-  │
-  ├── Validate request
-  ├── Upload PDF → Cloudflare R2
-  ├── Store metadata → MongoDB
-  │
-  ▼
-Document Processing Service :8000
-  │
-  ├── Create BullMQ job
-  │
-  ▼
-202 Accepted
-  │
-  ▼
-Redis / BullMQ
-  │
-  ▼
-Worker
-  │
-  ├── Fetch PDF from R2
-  ├── Extract text
-  ├── Clean text
-  ├── Chunk document
-  ├── Generate embeddings
-  └── Store vectors
+## Document Processing Workflow
+
+Document ingestion is designed to be asynchronous. The request path
+should not wait for a complete document-processing job.
+
+```mermaid
+flowchart TD
+    USER[User] --> UI[Frontend]
+    UI --> API[Core API]
+    API --> VALIDATE[Validate request and permissions]
+    VALIDATE --> UPLOAD[Upload PDF to Cloudflare R2]
+    UPLOAD --> META[Persist document metadata in MongoDB]
+    META --> PROC[Document Processing Service]
+    PROC --> JOB[Enqueue BullMQ job]
+    JOB --> ACCEPTED[Return 202 Accepted + tracking IDs]
+    JOB --> QUEUE[(Redis / BullMQ)]
+    QUEUE --> WORKER[Background Worker]
+
+    subgraph PIPELINE[Asynchronous PDF Pipeline]
+        WORKER --> DOWNLOAD[Download and validate PDF]
+        DOWNLOAD --> EXTRACT[Extract Markdown with Docling]
+        EXTRACT --> CLEAN[Clean Markdown]
+        CLEAN --> CHUNK[Structure-aware chunking<br/>Next implementation step]
+        CHUNK --> EMBED[Generate embeddings<br/>Planned]
+        EMBED --> STORE[Store vectors and metadata<br/>Planned]
+    end
+
+    STORE --> STATUS[Update final processing status]
+    STATUS --> COMPLETE[Completed or failed]
 ```
 
-The API does not wait for the entire document to be processed.
+A successful job-enqueue request can return a response shaped like:
 
-```json
+``` json
 {
   "documentId": "...",
   "jobId": "...",
@@ -167,13 +176,13 @@ The API does not wait for the entire document to be processed.
 }
 ```
 
----
+The exact response depends on the implemented API contract.
 
-# 📄 Document Management
+## Document Management
 
-### API Endpoints
+### API endpoints
 
-```text
+``` text
 POST   /api/v1/contracts/:contractId/documents
 GET    /api/v1/contracts/:contractId/documents
 GET    /api/v1/documents/:documentId
@@ -182,450 +191,372 @@ DELETE /api/v1/documents/:documentId
 
 ### Current capabilities
 
-- PDF-only upload
-- 25 MB upload limit
-- Cloudflare R2 object storage
-- SHA-256 file hashing
-- Duplicate document detection
-- Document metadata persistence
-- Processing job tracking
-- Processing state tracking
-- Soft deletion
-- Active document handling
-- Ownership validation
-- Contract ownership validation
+-   PDF-only upload
+-   25 MB upload limit
+-   300 pages page limit
+-   Cloudflare R2 object storage integration
+-   SHA-256 file hashing
+-   Duplicate-document detection
+-   Document metadata persistence
+-   Processing-job integration and state tracking
+-   Soft deletion
+-   Active-document handling
+-   Document ownership validation
+-   Contract ownership validation
 
----
+## Processing States
 
-# 🔐 Document Processing States
+The intended successful processing lifecycle is:
 
-```text
+``` text
 queued
-  ↓
+  |
+  v
 processing
-  ↓
+  |
+  v
 extracting
-  ↓
+  |
+  v
 chunking
-  ↓
+  |
+  v
 embedding
-  ↓
+  |
+  v
 storing_vectors
-  ↓
+  |
+  v
 completed
 ```
 
-Failures are tracked using:
+Failures should be represented explicitly, including a `failed`
+processing status and a useful processing error.
 
-```text
-processingStatus = failed
-processingError = ...
-```
+Progress and stage values must reflect work that has actually completed;
+a document should not be marked `completed` while required pipeline
+stages remain unimplemented or unsuccessful.
 
----
+## Document Versioning
 
-# 🧠 Document Versioning
+ClauseNexa treats uploaded files as independent document versions.
 
-ClauseNexa treats uploaded documents as independent document versions.
+Document-level fields:
 
-The document tracks:
-
-```text
+``` text
 processingVersion
 activeProcessingVersion
 ```
 
-The contract tracks:
+Contract-level field:
 
-```text
+``` text
 activeDocumentId
 ```
 
-A new document does not immediately become active.
+A new upload should not replace the currently active document before the
+new version has been processed successfully.
 
-```text
-Current:
+``` text
+Before processing:
 Contract
- └── activeDocumentId → Document A
+  └── activeDocumentId -> Document A
 
-New upload:
+While a new upload is processing:
 Contract
- ├── activeDocumentId → Document A
- └── Document B → processing
+  ├── activeDocumentId -> Document A
+  └── Document B -> processing
 
 If Document B fails:
- └── Document A remains active
+  └── Document A remains active
 
 If Document B succeeds:
- └── Document B becomes active
+  └── Document B can become active
 ```
 
-This prevents failed processing from replacing a working document.
+This design helps prevent an unsuccessful processing run from replacing
+a working document version.
 
----
+## Planned RAG and Contract Audit
 
-# 🤖 AI Contract Q&A
+### Contract Q&A
 
-The planned RAG pipeline:
-
-```text
-User Question
-      │
-      ▼
-RAG / AI Service
-      │
-      ▼
-Generate Query Embedding
-      │
-      ▼
-Vector Search
-      │
-      ▼
-Retrieve Relevant Chunks
-      │
-      ▼
-Build Context
-      │
-      ▼
-LLM
-      │
-      ▼
-Grounded Answer
+```mermaid
+flowchart TD
+    Q[User question] --> SVC[RAG / AI Service]
+    SVC --> QE[Generate query embedding]
+    QE --> SEARCH[Search vector database]
+    SEARCH --> RETRIEVE[Retrieve relevant chunks]
+    RETRIEVE --> FILTER[Apply document / contract filters]
+    FILTER --> CONTEXT[Build context with source metadata]
+    CONTEXT --> LLM[LLM generates answer]
+    LLM --> ANSWER[Evidence-grounded response]
+    RETRIEVE --> CITATIONS[Clause and page references<br/>when reliable metadata exists]
+    CITATIONS --> ANSWER
 ```
 
-Responses are designed to include relevant evidence such as contract information, relevant clauses, document sections, page references, and supporting text.
+Responses are intended to provide supporting evidence, including
+relevant contract sections, clause identifiers, and page references when
+reliable metadata is available. The system should distinguish retrieved
+contract text from generated interpretation and should not invent
+citations.
 
----
+### Automated contract audit
 
-# ⚖️ Automated Contract Audit
-
-The planned audit pipeline:
-
-```text
-Contract
-   ↓
-Retrieve Relevant Clauses
-   ↓
-AI Analysis
-   ↓
-Risk Detection
-   ↓
-Classification
-   ↓
-Evidence
-   ↓
-Recommendation
-   ↓
-Audit Report
+```mermaid
+flowchart TD
+    CONTRACT[Contract document] --> RETRIEVE[Retrieve relevant clauses]
+    RETRIEVE --> ANALYZE[AI-assisted analysis]
+    ANALYZE --> DETECT[Identify potential risks]
+    DETECT --> CLASSIFY[Classify and explain findings]
+    CLASSIFY --> EVIDENCE[Attach supporting contract evidence]
+    EVIDENCE --> RECOMMEND[Generate recommendations]
+    RECOMMEND --> REPORT[Audit report]
 ```
 
-Potential findings include:
+Potential areas for analysis include:
 
-- Missing clauses
-- Risky clauses
-- Ambiguous language
-- Termination risks
-- Payment risks
-- Liability risks
-- Indemnification risks
-- Confidentiality issues
-- Intellectual property concerns
-- Non-compete / non-solicitation concerns
-- Governing law and jurisdiction issues
+-   Missing or incomplete clauses
+-   Risky or ambiguous language
+-   Termination provisions
+-   Payment obligations
+-   Liability limitations
+-   Indemnification
+-   Confidentiality
+-   Intellectual property
+-   Non-compete and non-solicitation provisions
+-   Governing law and jurisdiction
 
-Each finding is intended to contain:
+A finding is intended to include a risk level, explanation, supporting
+evidence, source reference, and recommendation. ClauseNexa is an
+engineering project, not a substitute for advice from a qualified legal
+professional.
 
-```text
-Risk Level
-Finding
-Explanation
-Evidence
-Page Reference
-Recommendation
-```
+## Technology Stack
 
----
+### Current backend foundation
 
-# 🛠️ Technology Stack
+-   Node.js
+-   Express.js
+-   MongoDB and Mongoose
+-   Cloudflare R2
+-   Multer
+-   Jest
 
-## Current Backend
+### Processing and AI infrastructure
 
-- Node.js
-- Express.js
-- MongoDB
-- Mongoose
-- Cloudflare R2
-- Multer
-- Jest
+Planned or being integrated:
 
-## Planned Backend Infrastructure
+-   Redis
+-   BullMQ
+-   Docker
+-   Vector database
+-   Embedding model/provider
+-   LLM provider
+-   PDF extraction through Docling
 
-- Redis
-- BullMQ
-- Docker
-- Vector Database
-- Embedding Model
-- LLM Provider
+### Planned frontend
 
-## Planned Frontend
+-   React
+-   TypeScript
+-   Tailwind CSS
 
-- React
-- TypeScript
-- Tailwind CSS
+## Repository Structure
 
----
+The intended high-level layout is:
 
-# 📁 Project Structure
-
-```text
+``` text
 ClauseNexa/
-│
 ├── backend/
 │   ├── core-api/
-│   │   ├── src/
-│   │   └── tests/
-│   │
 │   ├── document-processing/
-│   │
 │   └── rag-service/
-│
 ├── client/
-│
 ├── docs/
 │   ├── architecture/
 │   └── diagrams/
-│
 ├── README.md
 └── .gitignore
 ```
 
----
+The exact contents may evolve as the services are implemented.
 
-# 🧪 Testing
+## Testing
 
-Testing is being implemented alongside backend development.
+Testing is being developed alongside the backend.
 
-### Current Document Controller coverage
+The existing Document Controller test suite has been reported as **29
+tests passing**. Coverage includes:
 
-```text
-29 tests
-29 passing
-```
+-   Invalid IDs and missing files
+-   Contract ownership checks
+-   Duplicate uploads
+-   Successful uploads
+-   R2 failures
+-   Database failures
+-   Processing-service failures
+-   Cleanup failures
+-   Document retrieval and empty collections
+-   Soft deletion
+-   Active-document deletion
+-   Database error paths
 
-Tests cover:
+Additional service, worker, pipeline, and integration tests should be
+added as those components are implemented. Re-run the test suite before
+relying on the reported count.
 
-- Invalid IDs
-- Missing files
-- Contract ownership
-- Duplicate uploads
-- Successful uploads
-- R2 failures
-- Database failures
-- Processing service failures
-- Cleanup failures
-- Document retrieval
-- Empty document collections
-- Soft deletion
-- Active document deletion
-- Database error paths
+## Development Roadmap
 
-Additional service and integration tests will be added as those services are implemented.
+### Weeks 1--3 --- Core Backend
 
----
+-   [x] Project definition and requirements
+-   [x] High-Level Design and service boundaries
+-   [x] Low-Level Design
+-   [x] Repository setup
+-   [x] Authentication and authorization
+-   [x] User management
+-   [x] Contract management
+-   [x] Document management
+-   [x] PDF upload and Cloudflare R2 integration
+-   [x] Duplicate-document detection
+-   [x] Document soft deletion
+-   [x] Document-processing integration point
+-   [x] Document controller tests
 
-# 🗺️ Development Roadmap
+### Week 4 --- Document Processing Service
 
-## Weeks 1–3 — Core Backend ✅
+-   [x] Document Processing Service
+-   [x] Redis and BullMQ integration
+-   [x] Job producer and background worker
+-   [x] Processing service API
+-   [x] Job retry strategy
+-   [x] Processing service tests
 
-- [x] Project definition
-- [x] Functional requirements
-- [x] High-Level Design
-- [x] Service boundaries
-- [x] Low-Level Design
-- [x] Repository setup
-- [x] Authentication
-- [x] Authorization
-- [x] User management
-- [x] Contract management
-- [x] Document management
-- [x] PDF upload
-- [x] Cloudflare R2 integration
-- [x] Duplicate document detection
-- [x] Document soft deletion
-- [x] Document processing integration point
-- [x] Document controller tests
+### Week 5 --- PDF Processing Pipeline
 
-## Week 4 — Document Processing Service
+-   [x] PDF extraction integration
+-   [x] Markdown cleaning utility
+-   [ ] Structure-aware document chunking
+-   [ ] Chunk metadata
+-   [ ] Complete processing-stage updates
+-   [ ] Failure handling and retry support
 
-- [ ] Document Processing Service
-- [ ] Redis
-- [ ] BullMQ
-- [ ] Job producer
-- [ ] Background worker
-- [ ] Processing service API
-- [ ] Job retry strategy
-- [ ] Processing service tests
+### Week 6 --- Embeddings and Vector Database
 
-## Week 5 — PDF Processing Pipeline
+-   [ ] Embedding generation
+-   [ ] Vector database integration
+-   [ ] Vector indexing
+-   [ ] Metadata filtering
+-   [ ] Processing-version handling
+-   [ ] Active-document activation after successful processing
 
-- [ ] PDF extraction
-- [ ] Text cleaning
-- [ ] Document chunking
-- [ ] Chunk metadata
-- [ ] Processing status updates
-- [ ] Failure handling
-- [ ] Retry support
+### Week 7 --- RAG Service
 
-## Week 6 — Embeddings + Vector DB
+-   [ ] RAG Service
+-   [ ] Query embeddings
+-   [ ] Semantic retrieval
+-   [ ] Contract-aware retrieval
+-   [ ] Prompt construction
+-   [ ] LLM integration
+-   [ ] Citation handling
+-   [ ] AI Q&A tests
 
-- [ ] Embedding generation
-- [ ] Vector database
-- [ ] Vector indexing
-- [ ] Metadata filtering
-- [ ] Processing versioning
-- [ ] Active document activation
+### Week 8 --- AI Audit and Backend Hardening
 
-## Week 7 — RAG Service
+-   [ ] Automated contract audit engine
+-   [ ] Risk classification
+-   [ ] Evidence extraction
+-   [ ] Recommendations
+-   [ ] Backend integration testing
+-   [ ] Security hardening
+-   [ ] Reliability improvements
+-   [ ] Production-readiness review
 
-- [ ] RAG Service
-- [ ] Query embeddings
-- [ ] Semantic retrieval
-- [ ] Contract-aware retrieval
-- [ ] Prompt construction
-- [ ] LLM integration
-- [ ] Citation handling
-- [ ] AI Q&A testing
+**Backend milestone:** The backend should be usable independently of the
+frontend.
 
-## Week 8 — AI Audit + Backend Completion
+### Week 9 --- Frontend Core
 
-- [ ] Automated contract audit engine
-- [ ] Risk classification
-- [ ] Evidence extraction
-- [ ] Recommendations
-- [ ] Backend integration testing
-- [ ] Security hardening
-- [ ] Reliability improvements
-- [ ] Production-readiness review
+-   [ ] React application
+-   [ ] Authentication UI
+-   [ ] Dashboard
+-   [ ] Contract management UI
+-   [ ] Document upload
+-   [ ] Processing status
+-   [ ] Contract workspace
 
-> **Backend milestone:** At the end of Week 8, the complete backend should be usable independently without the frontend.
+### Week 10 --- Frontend AI and UX
 
-## Week 9 — Frontend Core
+-   [ ] AI chat
+-   [ ] Citation UI
+-   [ ] Audit report UI
+-   [ ] Risk visualization
+-   [ ] Loading and error states
+-   [ ] Responsive UI
+-   [ ] UX polish
 
-- [ ] React application
-- [ ] Authentication UI
-- [ ] Dashboard
-- [ ] Contract management UI
-- [ ] Document upload
-- [ ] Processing status
-- [ ] Contract workspace
+### Week 11 --- Beta Testing
 
-## Week 10 — Frontend AI + UX
+-   [ ] End-to-end testing
+-   [ ] Large-PDF testing
+-   [ ] Concurrent-processing testing
+-   [ ] AI response and RAG accuracy testing
+-   [ ] Security and performance testing
+-   [ ] Bug fixing and regression testing
 
-- [ ] AI chat
-- [ ] Citation UI
-- [ ] Audit report UI
-- [ ] Risk visualization
-- [ ] Loading states
-- [ ] Error states
-- [ ] Responsive UI
-- [ ] UX polish
+### Week 12 --- Deployment
 
-## Week 11 — Beta Testing + Improvements
+-   [ ] Production infrastructure
+-   [ ] Environment configuration
+-   [ ] Core API deployment
+-   [ ] Document Processing deployment
+-   [ ] RAG service deployment
+-   [ ] Database, Redis, and vector database deployment
+-   [ ] Frontend deployment
+-   [ ] Domain and HTTPS
+-   [ ] Production verification and release
 
-- [ ] End-to-end testing
-- [ ] Large PDF testing
-- [ ] Concurrent processing testing
-- [ ] AI response testing
-- [ ] RAG accuracy testing
-- [ ] Security testing
-- [ ] Performance testing
-- [ ] Bug fixing
-- [ ] Regression testing
+The roadmap is a plan; unchecked items are not represented as completed
+functionality.
 
-## Week 12 — Production Deployment
-
-- [ ] Production infrastructure
-- [ ] Environment configuration
-- [ ] Backend deployment
-- [ ] Document Processing deployment
-- [ ] RAG deployment
-- [ ] Database deployment
-- [ ] Redis deployment
-- [ ] Vector database deployment
-- [ ] Frontend deployment
-- [ ] Domain and HTTPS
-- [ ] Production testing
-- [ ] Final release
-
----
-
-# 📅 12-Week Plan
-
-```text
-Week 1–3   ████████████████████  Core Backend       ✅
-Week 4     ░░░░░░░░░░░░░░░░░░░░  Processing Service
-Week 5     ░░░░░░░░░░░░░░░░░░░░  PDF Pipeline
-Week 6     ░░░░░░░░░░░░░░░░░░░░  Embeddings + Vector DB
-Week 7     ░░░░░░░░░░░░░░░░░░░░  RAG Service
-Week 8     ░░░░░░░░░░░░░░░░░░░░  AI Audit + Hardening
-
-Week 9     ░░░░░░░░░░░░░░░░░░░░  Frontend Core
-Week 10    ░░░░░░░░░░░░░░░░░░░░  Frontend AI + UX
-
-Week 11    ░░░░░░░░░░░░░░░░░░░░  Beta Testing
-Week 12    ░░░░░░░░░░░░░░░░░░░░  Production Deployment
-```
-
----
-
-# 📚 Architecture Documentation
+## Architecture Documentation
 
 Current architecture documentation includes:
 
-- High-Level Design
-- Service Communication & Data Flow
-- Low-Level Design
+-   High-Level Design
+-   Service communication and data flow
+-   Low-Level Design
 
-These documents define service responsibilities, communication boundaries, data ownership, and the processing architecture.
+These documents describe service responsibilities, communication
+boundaries, data ownership, and processing architecture.
 
----
+## Engineering Focus
 
-# 🎓 Engineering Objectives
+ClauseNexa is being developed to explore and demonstrate:
 
-ClauseNexa is being built as a production-oriented engineering project with a focus on:
+-   Backend architecture and REST API design
+-   Asynchronous processing and distributed systems
+-   Queue-based workloads and background workers
+-   Object storage and document lifecycle management
+-   Structure-aware text processing
+-   Vector databases and Retrieval-Augmented Generation
+-   LLM integration and evidence-grounded responses
+-   Service boundaries and data consistency
+-   Document versioning and fault tolerance
+-   Testing, security, scalability, and deployment
 
-- Backend architecture
-- REST API design
-- Asynchronous processing
-- Distributed systems
-- Queue-based workloads
-- Background workers
-- Object storage
-- Vector databases
-- Retrieval-Augmented Generation
-- LLM integration
-- Service boundaries
-- Data consistency
-- Document versioning
-- Fault tolerance
-- Testing
-- Security
-- Scalability
-- Production deployment
+## Project Status
 
----
+ClauseNexa is under active development. The Core API foundation and
+document-management functionality have been implemented. PDF extraction
+and Markdown cleaning are integrated into the processing workflow;
+structure-aware chunking, embeddings, vector storage, RAG, the audit
+engine, frontend, and deployment remain planned or in progress.
 
-# ⚠️ Project Status
+This project is currently intended for educational and portfolio
+purposes.
 
-ClauseNexa is currently under active development.
-
-The **Core API foundation and document management system are implemented**. The Document Processing Service, RAG pipeline, AI audit engine, frontend, beta testing, and production deployment are being developed according to the roadmap above.
-
-This project is currently intended for **educational and portfolio purposes**.
-
----
-
-# 👨‍💻 Author
+## Author
 
 **Ayush Narayan Gupta**
 
